@@ -2,7 +2,7 @@
  * - Network-first for the app shell (HTML/CSS/JS) so updates land immediately.
  * - Cache-first for vendored libs and icons (rarely change, big wins offline).
  */
-const CACHE = 'metagallery-v17';
+const CACHE = 'metagallery-v18';
 const ASSETS = [
     './',
     './index.html',
@@ -58,27 +58,7 @@ self.addEventListener('fetch', (e) => {
     const req = e.request;
     if (req.method !== 'GET') return;
     const url = new URL(req.url);
-
-    // Cross-origin: stale-while-revalidate cache for the OAuth client modules
-    // pulled from esm.sh so the app boots quickly (and works offline) on
-    // subsequent visits. Everything else cross-origin is left to the network.
-    if (url.origin !== self.location.origin) {
-        if (url.origin === 'https://esm.sh') {
-            e.respondWith(
-                caches.match(req).then(cached => {
-                    const fetchPromise = fetch(req).then(res => {
-                        if (res && res.status === 200) {
-                            const copy = res.clone();
-                            caches.open(CACHE).then(c => c.put(req, copy));
-                        }
-                        return res;
-                    }).catch(() => cached);
-                    return cached || fetchPromise;
-                })
-            );
-        }
-        return;
-    }
+    if (url.origin !== self.location.origin) return;
 
     const isAppShell = APP_SHELL.test(url.pathname);
 

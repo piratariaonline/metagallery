@@ -1,8 +1,9 @@
 /* MetaGallery — Bluesky OAuth (AT Protocol).
  *
- * Lazy-loads `@atproto/oauth-client-browser` and `@atproto/api` from esm.sh
- * the first time the user signs in (keeps the cold-start payload tiny for
- * visitors who never click "Sign in").
+ * Lazy-loads the vendored `@atproto/oauth-client-browser` + `@atproto/api`
+ * bundle (`./vendor/atproto-oauth.bundle.js`, built locally via
+ * `npm run build:vendor`) the first time the user signs in. Keeps the
+ * cold-start payload tiny for visitors who never click "Sign in".
  *
  * OAuth is only used on the production host where `client-metadata.json`
  * is reachable and listed `redirect_uris` matches the current origin.
@@ -12,10 +13,7 @@
 
 const PROD_ORIGIN = 'https://metagallery.alanmm.dev';
 const CLIENT_ID   = `${PROD_ORIGIN}/client-metadata.json`;
-
-// Pinned to the major versions that ship the stable API surface we use.
-const OAUTH_LIB   = 'https://esm.sh/@atproto/oauth-client-browser@^0.3';
-const API_LIB     = 'https://esm.sh/@atproto/api@^0.13';
+const BUNDLE_URL  = './vendor/atproto-oauth.bundle.js';
 
 let _modulePromise = null;
 let client = null;
@@ -29,11 +27,10 @@ export function isOAuthHost() {
 
 async function loadModules() {
     if (!_modulePromise) {
-        _modulePromise = Promise.all([import(OAUTH_LIB), import(API_LIB)])
-            .then(([oauthMod, apiMod]) => ({
-                BrowserOAuthClient: oauthMod.BrowserOAuthClient,
-                Agent: apiMod.Agent
-            }));
+        _modulePromise = import(BUNDLE_URL).then(mod => ({
+            BrowserOAuthClient: mod.BrowserOAuthClient,
+            Agent: mod.Agent
+        }));
     }
     return _modulePromise;
 }

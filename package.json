@@ -1,13 +1,18 @@
 {
   "name": "2025-04-20_bsky-metagallery",
   "version": "1.0.0",
-  "description": "A standalone, **frontend-only**, **PWA-enabled** web app to edit metadata\r (EXIF) of your **local** picture files. Nothing is uploaded — all reading\r and writing happens in your browser.",
+  "description": "A standalone, frontend-only, PWA-enabled web app to edit metadata (EXIF) of your local picture files. Nothing is uploaded — all reading and writing happens in your browser.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:vendor": "node build-vendor.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "@atproto/api": "^0.13.0",
+    "@atproto/oauth-client-browser": "^0.3.0",
+    "esbuild": "^0.24.0"
+  }
 }
