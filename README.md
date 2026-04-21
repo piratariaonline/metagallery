@@ -1,58 +1,75 @@
 # MetaGallery
 
-A standalone, **frontend-only**, **PWA-enabled** web app to edit metadata
-(EXIF) of your **local** picture files. Nothing is uploaded — all reading
-and writing happens in your browser.
+Um web app **independente**, **somente front-end** e com suporte a **PWA** para
+editar metadados (EXIF / XMP / chunks PNG) das suas fotos **locais**. Nada é
+enviado para servidor — toda a leitura e escrita acontece no seu navegador.
 
-🌐 Live: <https://metagallery.alanmm.dev/>
-📖 Leia em Português: [README.pt-BR.md](README.pt-BR.md)
+🌐 Versão online: <https://metagallery.alanmm.dev/>
 
-## Features
+## Recursos
 
-- 📁 Open a whole folder (Chromium browsers via the File System Access API)
-    or pick individual files (works in any browser).
-- 🖼 Thumbnail gallery + sidebar file list with filter.
-- ✏ Edit EXIF fields:
-    - Title / Description, User comment
-    - Artist / Author, Copyright, Software
-    - Date taken (DateTimeOriginal)
-    - Camera Make / Model
-    - GPS Latitude / Longitude / Altitude (with one-click clear)
-- 💾 **Save back to the original file** (Chromium) **or** ⬇ download an edited copy
-    (any browser, including Firefox/Safari).
-- 📲 Installable PWA — works offline once loaded.
-- 🔒 100% client-side. No server, no tracking, no upload.
+- 📁 Abra uma pasta inteira (navegadores Chromium, via File System Access API)
+    ou escolha arquivos individuais (qualquer navegador).
+- 🖼 Galeria de miniaturas + lista lateral de arquivos com filtro por nome
+    e busca opcional por Título / Descrição.
+- ✏ Edita os campos de metadados:
+    - Título / Descrição, Comentário do usuário
+    - Artista / Autor, Direitos autorais, Software
+    - Data da captura (DateTimeOriginal)
+    - Marca / Modelo da câmera
+    - GPS (latitude, longitude, altitude — com botão "Limpar GPS")
+- 💾 **Salva no arquivo original** (Chromium) **ou** ⬇ baixa uma cópia editada
+    (qualquer navegador, incluindo Firefox/Safari).
+- 🦋 **Posta no Bluesky** com seleção múltipla (até 4 imagens), respostas a
+    posts existentes, threadgate (quem pode responder), idioma do post e o
+    texto alternativo já preenchido a partir do **Comentário do usuário** ou
+    da **Descrição** dos metadados.
+- 🔐 Login via **OAuth** (AT Protocol) na versão publicada; senha de app no
+    desenvolvimento local.
+- 🌍 Interface em **Português (Brasil)** e **Inglês** com troca em tempo real.
+- 📲 PWA instalável — funciona offline depois de carregada.
+- 🔒 100% no seu lado. Sem servidor, sem rastreamento, sem upload.
 
-## Run it
+## Formatos suportados
 
-It's pure static files. Any static server works. From this folder:
+| Formato | Pré-visualização | Editar metadados | Observações                          |
+|---------|:---------------:|:----------------:|--------------------------------------|
+| JPEG    |        ✅       |        ✅        | EXIF + tags XP do Windows (`piexifjs`) |
+| PNG     |        ✅       |        ✅        | tEXt / iTXt + chunk eXIf             |
+| WebP    |        ✅       |        ✅        | EXIF + XMP                            |
+| GIF / AVIF / BMP | ✅ | ❌ (somente leitura) | Visualização apenas |
+
+## Como rodar
+
+São arquivos estáticos puros — qualquer servidor estático serve. Da raiz do
+projeto:
 
 ```powershell
 # Python
 python -m http.server 5173
-# or Node
+# ou Node
 npx serve .
 ```
 
-Then open <http://localhost:5173>.
+Abra <http://localhost:5173>.
 
-### Dev with auto-reload + HTTPS (for testing PWA install on a phone)
+### Desenvolvimento com recarga automática + HTTPS (para testar PWA no celular)
 
-The repo is set up for [`mkcert`](https://github.com/FiloSottile/mkcert)
-so you get a real green-padlock cert for `localhost` and your LAN IP — required
-for testing the PWA install prompt on Android Chrome.
+O repositório já vem preparado para [`mkcert`](https://github.com/FiloSottile/mkcert)
+— assim você ganha o cadeado verde em `localhost` e no seu IP da LAN, que é
+requisito para testar o prompt de instalação do PWA no Chrome do Android.
 
-One-time setup:
+Setup único:
 
 ```powershell
 winget install FiloSottile.mkcert
-mkcert -install                                      # adds local CA to Windows trust store
+mkcert -install                                      # adiciona a CA local ao Windows
 mkdir .certs ; cd .certs
 mkcert -cert-file dev.pem -key-file dev-key.pem `
-       localhost 127.0.0.1 <YOUR-LAN-IP>             # e.g. 192.168.0.5
+       localhost 127.0.0.1 <SEU-IP-DA-LAN>           # ex: 192.168.0.5
 ```
 
-Then start the dev server:
+Depois rode o servidor de desenvolvimento:
 
 ```powershell
 npx live-server --port=5173 --host=0.0.0.0 --no-browser `
@@ -60,52 +77,84 @@ npx live-server --port=5173 --host=0.0.0.0 --no-browser `
 ```
 
 - Desktop: <https://localhost:5173>
-- Phone (same Wi-Fi): `https://<YOUR-LAN-IP>:5173`
+- Celular (mesma rede Wi-Fi): `https://<SEU-IP-DA-LAN>:5173`
 
-To make the phone trust the cert, copy `%LOCALAPPDATA%\mkcert\rootCA.pem`
-to the phone and install it under **Settings → Security → Encryption & credentials
-→ Install a certificate → CA certificate**. From then on every cert mkcert
-issues on this PC will be trusted on that phone.
+Para o celular confiar no certificado, copie `%LOCALAPPDATA%\mkcert\rootCA.pem`
+para o aparelho e instale em **Configurações → Segurança → Criptografia e
+credenciais → Instalar um certificado → Certificado CA**. A partir daí qualquer
+certificado emitido pelo mkcert nesse PC será confiável no celular.
 
-> ⚠ The File System Access API requires a **secure context**
-> (`https://` or `http://localhost`).
+> ⚠ A File System Access API exige um **contexto seguro**
+> (`https://` ou `http://localhost`).
 >
-> Saving back to the original file currently works in Chrome / Edge / Brave / Opera.
-> In Firefox / Safari you'll get the **Download copy** flow automatically.
+> Salvar no arquivo original funciona hoje em Chrome / Edge / Brave / Opera.
+> Em Firefox / Safari você é redirecionado automaticamente para o fluxo de
+> **baixar cópia**.
 
-## One-time setup: vendor `piexifjs`
+## Configuração inicial: vendoring do `piexifjs`
 
-Download `piexif.js` (or the minified `piexif.min.js`) from
-<https://github.com/hMatoba/piexifjs> and place it at:
+Baixe `piexif.js` (ou o minificado `piexif.min.js`) de
+<https://github.com/hMatoba/piexifjs> e coloque em:
 
 ```
 vendor/piexif.min.js
 ```
 
-(That file is loaded by `index.html`.)
+(É carregado pelo `index.html`.)
 
-## Optional: PNG icons for the install prompt
+## Bundle do OAuth do Bluesky
 
-For the best PWA install prompt, add `icons/icon-192.png` and
-`icons/icon-512.png`. The SVG icon already shipped works for the in-app UI.
+A integração OAuth do AT Protocol depende de um bundle próprio do
+`@atproto/oauth-client-browser` + `@atproto/api`, gerado com `esbuild` e
+versionado em `vendor/atproto-oauth.bundle.js`. Para regerar:
 
-## File structure
+```powershell
+npm install
+npm run build:vendor
+```
+
+O app continua sendo **sem build** — esse passo só é necessário quando se
+deseja atualizar a versão das libs do AT Protocol.
+
+## Ícones PNG opcionais para o prompt de instalação
+
+Para um prompt de instalação de PWA mais bonito, adicione
+`icons/icon-192.png` e `icons/icon-512.png`. O ícone SVG já incluído cobre a UI.
+
+## Estrutura de arquivos
 
 ```
 index.html
 styles.css
 app.js
+i18n.js
+metadata.js
+thumbs.js
+searchIndex.js
+bluesky.js
+oauth.js
 sw.js
 manifest.webmanifest
+client-metadata.json          (descritor OAuth servido em produção)
 icons/icon.svg
-vendor/piexif.min.js   (you provide)
+vendor/piexif.min.js          (você fornece)
+vendor/atproto-oauth.bundle.js (gerado por `npm run build:vendor`)
 ```
 
-## Notes & limitations
+## Notas e limitações
 
-- EXIF read/write is supported for **JPEG** only (via `piexifjs`).
-    PNG/WebP/AVIF are previewed but not yet editable.
-- Editing strips the existing thumbnail-IFD only if you remove all metadata;
-    otherwise the structure is preserved.
-- The “Pick files” fallback cannot write back to the original location
-    (browser security). Use **Download copy** in that case.
+- Edição de metadados via JPEG usa `piexifjs`; PNG e WebP usam parsers próprios
+    embutidos no `metadata.js`. AVIF/GIF/BMP ficam apenas como pré-visualização.
+- O fluxo "Escolher arquivos" não consegue salvar no local original
+    (segurança do navegador). Use **Baixar cópia** nesse caso.
+- O envio para o Bluesky redimensiona as imagens para no máximo 2000 px no maior
+    lado, com qualidade JPEG ajustada automaticamente para caber no limite de
+    ~976 KB por blob da rede.
+- O OAuth nativo do Bluesky exige `https://` e um `client-metadata.json`
+    publicado no domínio (já incluído para `metagallery.alanmm.dev`). Em
+    desenvolvimento local o app cai automaticamente para login com senha de app.
+
+## Licença
+
+Código aberto, sem propaganda, sem rastreamento. Feito com 🦋 por
+[@piratariaonline.bsky.social](https://bsky.app/profile/piratariaonline.bsky.social).
