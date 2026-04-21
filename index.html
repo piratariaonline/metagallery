@@ -40,6 +40,7 @@
         <div class="actions">
             <button id="btn-open-dir" class="primary" title="Open a folder (Chromium browsers)">📁 <span class="lbl">Open folder</span></button>
             <button id="btn-open-files" title="Pick individual files">🖼 <span class="lbl">Pick files</span></button>
+            <button id="btn-bsky" title="Sign in to Bluesky">🦋 <span class="lbl">Bluesky</span></button>
             <button id="btn-install" hidden>⬇ <span class="lbl">Install</span></button>
         </div>
     </header>
@@ -160,6 +161,97 @@
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Selection action bar (appears when ≥1 thumb is selected) -->
+    <div id="selection-bar" class="selection-bar" hidden>
+        <span><strong id="sel-count">0</strong> / 4 selected</span>
+        <button type="button" id="sel-clear" class="ghost">Clear</button>
+        <button type="button" id="sel-post" class="primary">🦋 Post to Bluesky</button>
+    </div>
+
+    <!-- Bluesky sign-in modal (app password — temporary, OAuth coming) -->
+    <div id="bsky-login-modal" class="modal" hidden>
+        <div class="modal-card">
+            <header class="modal-head">
+                <h2>Sign in to Bluesky</h2>
+                <button type="button" class="ghost" data-close-modal>✕</button>
+            </header>
+            <div class="modal-body">
+                <p class="muted">
+                    Use an <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener">app password</a>
+                    (not your main password). OAuth sign-in arrives once the app is deployed.
+                </p>
+                <form id="bsky-login-form" autocomplete="off">
+                    <label>Handle
+                        <input type="text" name="identifier" placeholder="alice.bsky.social" required />
+                    </label>
+                    <label>App password
+                        <input type="password" name="password" placeholder="xxxx-xxxx-xxxx-xxxx" required />
+                    </label>
+                    <p id="bsky-login-status" class="status" aria-live="polite"></p>
+                    <div class="form-actions">
+                        <button type="button" class="ghost" data-close-modal>Cancel</button>
+                        <button type="submit" class="primary">Sign in</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bluesky compose modal -->
+    <div id="bsky-compose-modal" class="modal" hidden>
+        <div class="modal-card compose">
+            <header class="compose-head">
+                <button type="button" class="ghost" id="bsky-cancel">Cancel</button>
+                <div class="compose-head-right">
+                    <span id="bsky-me" class="muted"></span>
+                    <button type="button" class="primary" id="bsky-post-btn" disabled>Post</button>
+                </div>
+            </header>
+            <div class="compose-body">
+                <div id="bsky-reply-ribbon" class="reply-card" hidden>
+                    <div class="reply-card-head">
+                        <span class="reply-label">Replying to</span>
+                        <button type="button" class="ghost mini" id="bsky-reply-clear" title="Cancel reply">✕</button>
+                    </div>
+                    <div class="reply-card-author">
+                        <img id="bsky-reply-avatar" class="avatar small" alt="" />
+                        <div class="reply-card-names">
+                            <strong id="bsky-reply-name"></strong>
+                            <span id="bsky-reply-author" class="muted"></span>
+                        </div>
+                    </div>
+                    <p id="bsky-reply-snippet" class="reply-card-text"></p>
+                    <div id="bsky-reply-images" class="reply-card-images"></div>
+                </div>
+                <div id="bsky-reply-input" class="reply-input">
+                    <label>
+                        <input type="checkbox" id="bsky-reply-toggle" /> Reply to an existing post
+                    </label>
+                    <input type="url" id="bsky-reply-url" placeholder="https://bsky.app/profile/.../post/..." hidden />
+                    <p id="bsky-reply-status" class="status" hidden></p>
+                </div>
+                <div class="compose-row">
+                    <img id="bsky-avatar" class="avatar" alt="" />
+                    <textarea id="bsky-text" placeholder="What's up?" rows="4" maxlength="3000"></textarea>
+                </div>
+                <div id="bsky-images" class="bsky-images"></div>
+                <p id="bsky-post-status" class="status" aria-live="polite"></p>
+            </div>
+            <footer class="compose-foot">
+                <select id="bsky-threadgate" title="Who can reply">
+                    <option value="everybody">🌐 Anyone can reply</option>
+                    <option value="following">👥 Followers can reply</option>
+                    <option value="mentioned">@ Mentioned only</option>
+                    <option value="nobody">🔒 No one can reply</option>
+                </select>
+                <button type="button" id="bsky-signout" class="ghost mini" title="Sign out of Bluesky">Sign out</button>
+                <span class="spacer"></span>
+                <select id="bsky-lang" title="Post language"></select>
+                <span id="bsky-count" class="count">300</span>
+            </footer>
+        </div>
+    </div>
 
     <!-- piexifjs for EXIF read/write (JPEG) -->
     <script src="./vendor/piexif.min.js"></script>

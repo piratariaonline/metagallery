@@ -2,6 +2,7 @@
 import { readMetadata, writeMetadata, detectFormat, isWritable, EMPTY_VALUES } from './metadata.js';
 import { getThumb, getCachedThumb, clearThumbCache } from './thumbs.js';
 import { startIndexing, cancelIndexing, isIndexingDone, indexReady } from './searchIndex.js';
+import * as bsky from './bluesky.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -10,6 +11,9 @@ const IS_EMBEDDED = window.self !== window.top;
 
 /** @type {{handle: FileSystemFileHandle|null, file: File, name: string, dirty: boolean, edits: Object|null}[]} */
 const items = [];
+// Subset of `items` currently displayed (gallery + sidebar). Updated by the
+// search filter; mirrors `items` when no filter is active.
+let visibleItems = items;
 let currentIndex = -1;
 let dirHandle = null;
 let installPromptEvent = null;
@@ -152,6 +156,7 @@ function setItems(arr, folderName) {
     cancelIndexing();
     items.length = 0;
     items.push(...arr);
+    visibleItems = items;
     currentIndex = -1;
     $('#folder-name').textContent = folderName || (arr.length ? `${arr.length} file(s)` : 'No folder loaded');
     $('#file-count').textContent  = arr.length ? `${arr.length} image(s)` : '';
@@ -198,7 +203,9 @@ async function onSearchInput() {
 
     // Tier 1 — synchronous, uses whatever's already in memory.
     let matches = filterItems(term, wantTitle, wantDesc);
+    visibleItems = matches;
     renderFileList(matches);
+    renderGallery();
 
     // Bail early if Tier 2 wouldn't change anything.
     if (!term)                         return; // no query
@@ -211,7 +218,9 @@ async function onSearchInput() {
     await indexReady();
     if (myToken !== searchToken) return; // a newer query superseded us
     matches = filterItems(term, wantTitle, wantDesc);
+    visibleItems = matches;
     renderFileList(matches);
+    renderGallery();
     setSearchStatus('');
 }
 
@@ -315,9 +324,19 @@ function renderGallery() {
             <p>Open a folder or pick files to begin.</p></div>`;
         return;
     }
+    const list = visibleItems || items;
+    if (!list.length) {
+        g.innerHTML = `<div class="empty"><h2>No matches.</h2>
+            <p>Try a different filter or untick Title/Description to broaden the search.</p></div>`;
+        return;
+    }
     const observer = ensureThumbObserver();
     const frag = document.createDocumentFragment();
-    items.forEach((it, i) => {
+    // Render only the filtered subset, but keep `dataset.index` aligned with
+    // the canonical `items` array so selection / openItem / dirty flags etc.
+    // keep working untouched.
+    list.forEach((it) => {
+        const i = items.indexOf(it);
         const div = document.createElement('div');
         div.className = 'thumb';
         if (i === currentIndex) div.classList.add('active');
@@ -326,9 +345,12 @@ function renderGallery() {
         div.innerHTML = `
             <div class="img-wrap loading">
                 <img class="img" alt="" decoding="async">
+                <span class="sel-mark">✓</span>
             </div>
             <div class="label" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</div>`;
-        div.addEventListener('click', () => openItem(i));
+        if (selectedIndexes.has(i)) div.classList.add('selected');
+        div.addEventListener('click', (ev) => onThumbClick(i, ev));
+        attachLongPress(div, () => enterSelectionWith(i));
         frag.appendChild(div);
 
         // If we already have a cached thumb, set immediately; otherwise observe.
@@ -346,6 +368,410 @@ function renderGallery() {
         }
     });
     g.appendChild(frag);
+}
+
+/* ============================================================
+ * Multi-select state + Bluesky compose flow
+ * ============================================================ */
+
+const MAX_SEL = 4;
+const selectedIndexes = new Set();
+let selectionMode = false;
+
+function onThumbClick(i, ev) {
+    // In selection mode, click toggles. Shift/Ctrl/Meta-click also toggles
+    // (and enters selection mode) without needing long-press first.
+    if (selectionMode || ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+        toggleSelection(i);
+        return;
+    }
+    openItem(i);
+}
+
+function enterSelectionWith(i) {
+    if (!selectionMode) selectionMode = true;
+    if (!selectedIndexes.has(i)) toggleSelection(i);
+    else updateSelectionUI();
+}
+
+function toggleSelection(i) {
+    if (selectedIndexes.has(i)) {
+        selectedIndexes.delete(i);
+    } else {
+        if (selectedIndexes.size >= MAX_SEL) {
+            const bar = $('#selection-bar');
+            bar?.animate(
+                [{ transform: 'translate(-50%, 0) scale(1)' }, { transform: 'translate(-50%, 0) scale(1.06)' }, { transform: 'translate(-50%, 0) scale(1)' }],
+                { duration: 220 }
+            );
+            toast(`Up to ${MAX_SEL} images per Bluesky post.`, 'err');
+            return;
+        }
+        selectedIndexes.add(i);
+    }
+    updateSelectionUI();
+}
+
+function clearSelection() {
+    selectedIndexes.clear();
+    selectionMode = false;
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    document.querySelectorAll('.thumb').forEach(el => {
+        const idx = +el.dataset.index;
+        el.classList.toggle('selected', selectedIndexes.has(idx));
+    });
+    const bar = $('#selection-bar');
+    const n = selectedIndexes.size;
+    if (n === 0) { bar.hidden = true; selectionMode = false; }
+    else { bar.hidden = false; $('#sel-count').textContent = n; }
+}
+
+/* Long-press helper: 450 ms hold without significant move = trigger.
+ * Works for both touch and mouse without conflicting with click. */
+function attachLongPress(el, cb) {
+    let t = 0, sx = 0, sy = 0, fired = false;
+    const start = (e) => {
+        fired = false;
+        const p = e.touches ? e.touches[0] : e;
+        sx = p.clientX; sy = p.clientY;
+        t = setTimeout(() => { fired = true; cb(); }, 450);
+    };
+    const move = (e) => {
+        const p = e.touches ? e.touches[0] : e;
+        if (Math.hypot(p.clientX - sx, p.clientY - sy) > 8) cancel();
+    };
+    const cancel = () => { clearTimeout(t); t = 0; };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: true });
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchcancel', cancel);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+    // If long-press fired, swallow the subsequent click so we don't open the editor.
+    el.addEventListener('click', (e) => { if (fired) { e.stopImmediatePropagation(); fired = false; } }, true);
+}
+
+$('#sel-clear').addEventListener('click', clearSelection);
+$('#sel-post').addEventListener('click', () => beginPostFlow());
+
+/* ---------- Bluesky login modal ---------- */
+$('#btn-bsky').addEventListener('click', () => {
+    if (bsky.isLoggedIn()) {
+        // Quick toggle: show signed-in state via toast + offer sign out
+        if (confirm(`Signed in as @${bsky.getSession().handle}. Sign out?`)) {
+            bsky.logout();
+            toast('Signed out of Bluesky.');
+            updateBskyButton();
+        }
+    } else {
+        openLoginModal();
+    }
+});
+
+function openLoginModal() {
+    const m = $('#bsky-login-modal');
+    m.hidden = false;
+    setStatusEl($('#bsky-login-status'), '');
+    setTimeout(() => m.querySelector('input[name="identifier"]')?.focus(), 50);
+}
+function closeLoginModal() { $('#bsky-login-modal').hidden = true; }
+
+document.querySelectorAll('[data-close-modal]').forEach(b =>
+    b.addEventListener('click', (e) => e.target.closest('.modal').hidden = true)
+);
+
+$('#bsky-login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const status = $('#bsky-login-status');
+    setStatusEl(status, 'Signing in…');
+    try {
+        await bsky.login(fd.get('identifier'), fd.get('password'));
+        setStatusEl(status, 'Signed in ✔', 'ok');
+        updateBskyButton();
+        closeLoginModal();
+        toast(`Signed in as @${bsky.getSession().handle}`, 'ok');
+        if (pendingPostFlow) { pendingPostFlow = false; openComposeModal(); }
+    } catch (err) {
+        setStatusEl(status, err.message || String(err), 'err');
+    }
+});
+
+function updateBskyButton() {
+    const btn = $('#btn-bsky');
+    if (bsky.isLoggedIn()) {
+        btn.title = `Signed in as @${bsky.getSession().handle} — click to sign out`;
+        btn.querySelector('.lbl').textContent = '@' + bsky.getSession().handle.split('.')[0];
+    } else {
+        btn.title = 'Sign in to Bluesky';
+        btn.querySelector('.lbl').textContent = 'Bluesky';
+    }
+}
+updateBskyButton();
+
+/* ---------- Compose modal ---------- */
+
+let pendingPostFlow = false;
+let composeImages = [];   // [{itemIndex, file, alt, blob, width, height}]
+let composeReply = null;  // {uri, cid, root, parentText, parentAuthor}
+let composeBusy = false;
+
+function beginPostFlow() {
+    if (selectedIndexes.size === 0) return;
+    if (!bsky.isLoggedIn()) {
+        pendingPostFlow = true;
+        openLoginModal();
+        return;
+    }
+    openComposeModal();
+}
+
+async function openComposeModal() {
+    const indexes = [...selectedIndexes].sort((a, b) => a - b);
+    composeImages = indexes.map(i => {
+        const it = items[i];
+        // Alt text source: prefer the User comment ("description") field;
+        // fall back to ImageDescription ("title") when the comment is empty.
+        const ed = it.edits || {};
+        const idx = it.metaIndex || {};
+        const alt = ed.UserComment || idx.description || ed.ImageDescription || idx.title || '';
+        return { itemIndex: i, file: it.file, name: it.name, alt, blob: null, width: 0, height: 0 };
+    });
+    composeReply = null;
+
+    // Reset UI
+    $('#bsky-text').value = '';
+    $('#bsky-reply-toggle').checked = false;
+    $('#bsky-reply-url').hidden = true;
+    $('#bsky-reply-url').value = '';
+    $('#bsky-reply-status').hidden = true;
+    $('#bsky-reply-ribbon').hidden = true;
+    $('#bsky-reply-input').hidden = false;
+    $('#bsky-post-status').textContent = '';
+    $('#bsky-post-status').className = 'status';
+    populateLanguages();
+    renderComposeImages();
+    updateComposeCount();
+
+    $('#bsky-compose-modal').hidden = false;
+    setTimeout(() => $('#bsky-text').focus(), 50);
+
+    // Avatar (best-effort)
+    try {
+        const p = await bsky.getMyProfile();
+        $('#bsky-avatar').src = p?.avatar || './icons/icon.svg';
+        $('#bsky-me').textContent = '@' + (p?.handle || bsky.getSession().handle);
+    } catch {
+        $('#bsky-avatar').src = './icons/icon.svg';
+    }
+}
+
+function closeComposeModal() {
+    if (composeBusy) return;
+    $('#bsky-compose-modal').hidden = true;
+    composeImages = [];
+    composeReply = null;
+}
+
+$('#bsky-cancel').addEventListener('click', closeComposeModal);
+$('#bsky-signout').addEventListener('click', () => {
+    if (composeBusy) return;
+    bsky.logout();
+    updateBskyButton();
+    closeComposeModal();
+    toast('Signed out of Bluesky.');
+});
+
+$('#bsky-text').addEventListener('input', updateComposeCount);
+
+$('#bsky-reply-toggle').addEventListener('change', (e) => {
+    const on = e.target.checked;
+    $('#bsky-reply-url').hidden = !on;
+    if (!on) {
+        composeReply = null;
+        $('#bsky-reply-ribbon').hidden = true;
+        $('#bsky-reply-status').hidden = true;
+        updateComposeCount();
+    }
+});
+
+$('#bsky-reply-url').addEventListener('change', async (e) => {
+    const url = e.target.value.trim();
+    if (!url) { composeReply = null; $('#bsky-reply-ribbon').hidden = true; updateComposeCount(); return; }
+    const status = $('#bsky-reply-status');
+    setStatusEl(status, 'Resolving post…');
+    try {
+        composeReply = await bsky.getPostByUrl(url);
+        setStatusEl(status, '');
+        renderReplyCard(composeReply);
+        $('#bsky-reply-ribbon').hidden = false;
+        // Collapse the picker once we have a confirmed reply target.
+        $('#bsky-reply-input').hidden = true;
+    } catch (err) {
+        composeReply = null;
+        setStatusEl(status, err.message || String(err), 'err');
+        $('#bsky-reply-ribbon').hidden = true;
+    }
+    updateComposeCount();
+});
+
+$('#bsky-reply-clear').addEventListener('click', () => {
+    composeReply = null;
+    $('#bsky-reply-toggle').checked = false;
+    $('#bsky-reply-url').hidden = true;
+    $('#bsky-reply-url').value = '';
+    $('#bsky-reply-ribbon').hidden = true;
+    $('#bsky-reply-input').hidden = false;
+    updateComposeCount();
+});
+
+function renderReplyCard(reply) {
+    if (!reply) return;
+    $('#bsky-reply-avatar').src = reply.parentAvatar || './icons/icon.svg';
+    $('#bsky-reply-name').textContent   = reply.parentDisplayName || reply.parentHandle;
+    $('#bsky-reply-author').textContent = '@' + reply.parentHandle;
+    $('#bsky-reply-snippet').textContent = reply.parentText || '(no text)';
+    const imgs = $('#bsky-reply-images');
+    imgs.innerHTML = '';
+    (reply.parentImages || []).slice(0, 4).forEach(img => {
+        const i = document.createElement('img');
+        i.src = img.thumb;
+        i.alt = img.alt || '';
+        i.title = img.alt || '';
+        imgs.appendChild(i);
+    });
+}
+
+function renderComposeImages() {
+    const c = $('#bsky-images');
+    c.innerHTML = '';
+    composeImages.forEach((img, idx) => {
+        const div = document.createElement('div');
+        div.className = 'bsky-image';
+        const url = URL.createObjectURL(img.file);
+        div.innerHTML = `
+            <div class="bsky-image-thumb">
+                <img src="${url}" alt="" />
+                <button type="button" class="img-remove" title="Remove from post" aria-label="Remove image">✕</button>
+            </div>
+            <textarea placeholder="Alt text (accessibility description)" maxlength="${bsky.MAX_ALT_LEN + 200}">${escapeHtml(img.alt)}</textarea>
+            <div class="alt-meta"><span class="src">Alt prefilled from metadata</span><span class="cnt">0 / ${bsky.MAX_ALT_LEN}</span></div>`;
+        const ta = div.querySelector('textarea');
+        const cnt = div.querySelector('.cnt');
+        const meta = div.querySelector('.alt-meta');
+        const updateAlt = () => {
+            img.alt = ta.value;
+            const len = ta.value.length;
+            cnt.textContent = `${len} / ${bsky.MAX_ALT_LEN}`;
+            meta.classList.toggle('over', len > bsky.MAX_ALT_LEN);
+        };
+        ta.addEventListener('input', updateAlt);
+        updateAlt();
+        div.querySelector('.img-remove').addEventListener('click', () => removeComposeImage(img.itemIndex));
+        c.appendChild(div);
+    });
+}
+
+function removeComposeImage(itemIndex) {
+    composeImages = composeImages.filter(i => i.itemIndex !== itemIndex);
+    // Keep the gallery selection in sync so cancel→reopen reflects what the user kept.
+    selectedIndexes.delete(itemIndex);
+    updateSelectionUI();
+    renderComposeImages();
+    updateComposeCount();
+    if (composeImages.length === 0 && !$('#bsky-text').value.trim()) {
+        // Nothing left to post — just close the modal.
+        closeComposeModal();
+    }
+}
+
+function updateComposeCount() {
+    const text = $('#bsky-text').value;
+    const len = bsky.graphemeLength(text);
+    const remaining = bsky.MAX_TEXT_LEN - len;
+    const el = $('#bsky-count');
+    el.textContent = remaining;
+    el.classList.toggle('warn', remaining < 30 && remaining >= 0);
+    el.classList.toggle('over', remaining < 0);
+    const canPost = !composeBusy
+        && remaining >= 0
+        && (text.trim().length > 0 || composeImages.length > 0)
+        && composeImages.every(i => (i.alt || '').length <= bsky.MAX_ALT_LEN)
+        && (!$('#bsky-reply-toggle').checked || composeReply);
+    $('#bsky-post-btn').disabled = !canPost;
+}
+
+function populateLanguages() {
+    const sel = $('#bsky-lang');
+    if (sel.options.length) return;
+    const opts = [
+        ['en', 'English'], ['pt', 'Português'], ['es', 'Español'],
+        ['fr', 'Français'], ['de', 'Deutsch'], ['it', 'Italiano'],
+        ['ja', '日本語'], ['ko', '한국어'], ['zh', '中文'], ['ru', 'Русский']
+    ];
+    for (const [v, l] of opts) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = l;
+        sel.appendChild(o);
+    }
+    const guess = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    sel.value = opts.some(o => o[0] === guess) ? guess : 'en';
+}
+
+$('#bsky-post-btn').addEventListener('click', submitPost);
+
+async function submitPost() {
+    if (composeBusy) return;
+    composeBusy = true;
+    const status = $('#bsky-post-status');
+    setStatusEl(status, 'Preparing images…');
+    $('#bsky-post-btn').disabled = true;
+
+    try {
+        // 1. Resize + upload all images in parallel
+        const uploads = await Promise.all(composeImages.map(async (img) => {
+            const { blob, width, height } = await bsky.resizeForUpload(img.file);
+            const ref = await bsky.uploadBlob(blob);
+            return { blob: ref, alt: img.alt, width, height };
+        }));
+
+        setStatusEl(status, 'Posting…');
+
+        // 2. Create the post
+        const created = await bsky.createPost({
+            text: $('#bsky-text').value,
+            images: uploads,
+            replyTo: composeReply || undefined,
+            langs: [$('#bsky-lang').value],
+            threadgate: $('#bsky-threadgate').value
+        });
+
+        const url = bsky.postUriToWebUrl(created.uri);
+        setStatusEl(status, 'Posted ✔', 'ok');
+        toast('Posted to Bluesky', 'ok');
+        // Open the post in a new tab so user can verify
+        window.open(url, '_blank', 'noopener');
+        composeBusy = false;
+        clearSelection();
+        closeComposeModal();
+    } catch (err) {
+        console.error(err);
+        composeBusy = false;
+        setStatusEl(status, 'Post failed: ' + (err?.message || err), 'err');
+        updateComposeCount();
+    }
+}
+
+function setStatusEl(el, msg, kind = '') {
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'status' + (kind ? ' ' + kind : '');
+    el.hidden = !msg;
 }
 
 /* ---------- Editor ---------- */
