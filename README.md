@@ -4,6 +4,9 @@ A standalone, **frontend-only**, **PWA-enabled** web app to edit metadata
 (EXIF) of your **local** picture files. Nothing is uploaded — all reading
 and writing happens in your browser.
 
+🌐 Live: <https://metagallery.alanmm.dev/>
+📖 Leia em Português: [README.pt-BR.md](README.pt-BR.md)
+
 ## Features
 
 - 📁 Open a whole folder (Chromium browsers via the File System Access API)
