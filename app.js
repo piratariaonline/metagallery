@@ -3,6 +3,7 @@ import { readMetadata, writeMetadata, detectFormat, isWritable, EMPTY_VALUES } f
 import { getThumb, getCachedThumb, clearThumbCache } from './thumbs.js';
 import { startIndexing, cancelIndexing, isIndexingDone, indexReady } from './searchIndex.js';
 import * as bsky from './bluesky.js';
+import * as oauth from './oauth.js';
 import { t, tHtml, applyI18n, setLocale, getLocale, getAvailableLocales } from './i18n.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -531,7 +532,8 @@ $('#sel-post').addEventListener('click', () => beginPostFlow());
 $('#btn-bsky').addEventListener('click', () => {
     if (bsky.isLoggedIn()) {
         // Quick toggle: show signed-in state via toast + offer sign out
-        if (confirm(t('bsky.login.confirmSignOut', { handle: bsky.getSession().handle }))) {
+        const handle = bsky.getSession()?.handle || bsky.getSession()?.did || '';
+        if (confirm(t('bsky.login.confirmSignOut', { handle }))) {
             bsky.logout();
             toast(t('bsky.login.signedOut'));
             updateBskyButton();
@@ -544,13 +546,24 @@ $('#btn-bsky').addEventListener('click', () => {
 function openLoginModal() {
     const m = $('#bsky-login-modal');
     m.hidden = false;
-    // Render the intro line (which contains a translated link to bsky.app).
+    const isOAuth = oauth.isOAuthHost();
     const intro = $('#bsky-login-intro');
     if (intro) {
-        const link = `<a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener">${tHtml('bsky.login.appPwd')}</a>`;
-        // Use tHtml so we can swap {appPwd} with the link safely.
-        intro.innerHTML = tHtml('bsky.login.intro').replace('{appPwd}', link);
+        if (isOAuth) {
+            intro.innerHTML = tHtml('bsky.oauth.intro');
+        } else {
+            const link = `<a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener">${tHtml('bsky.login.appPwd')}</a>`;
+            intro.innerHTML = tHtml('bsky.login.intro').replace('{appPwd}', link);
+        }
     }
+    // OAuth flow doesn't need (or accept) a password — hide the field and
+    // relabel the submit button.
+    const pwdLabel = m.querySelector('input[name="password"]')?.closest('label');
+    if (pwdLabel) pwdLabel.hidden = isOAuth;
+    const pwdInput = m.querySelector('input[name="password"]');
+    if (pwdInput) pwdInput.required = !isOAuth;
+    const submitBtn = m.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = isOAuth ? t('bsky.oauth.continue') : t('bsky.login.submit');
     setStatusEl($('#bsky-login-status'), '');
     setTimeout(() => m.querySelector('input[name="identifier"]')?.focus(), 50);
 }
@@ -564,6 +577,17 @@ $('#bsky-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const status = $('#bsky-login-status');
+    if (oauth.isOAuthHost()) {
+        // OAuth: redirect to the user's auth provider. This call typically does
+        // not resolve — the page navigates away.
+        setStatusEl(status, t('bsky.oauth.redirecting'));
+        try {
+            await oauth.signIn(fd.get('identifier'));
+        } catch (err) {
+            setStatusEl(status, err.message || String(err), 'err');
+        }
+        return;
+    }
     setStatusEl(status, t('bsky.login.signing'));
     try {
         await bsky.login(fd.get('identifier'), fd.get('password'));
@@ -577,17 +601,43 @@ $('#bsky-login-form').addEventListener('submit', async (e) => {
     }
 });
 
-function updateBskyButton() {
+async function updateBskyButton() {
     const btn = $('#btn-bsky');
     if (bsky.isLoggedIn()) {
-        btn.title = t('bsky.btn.signedInTitle', { handle: bsky.getSession().handle });
-        btn.querySelector('.lbl').textContent = '@' + bsky.getSession().handle.split('.')[0];
+        // For OAuth sessions we initially only know the DID. Resolve the
+        // friendly handle via the profile cache; fall back to the DID.
+        let handle = bsky.getSession()?.handle || '';
+        if (!handle || handle.startsWith('did:')) {
+            try {
+                const p = await bsky.getMyProfile();
+                if (p?.handle) handle = p.handle;
+            } catch {}
+        }
+        const short = handle.startsWith('did:') ? 'bsky' : (handle.split('.')[0] || 'bsky');
+        btn.title = t('bsky.btn.signedInTitle', { handle });
+        btn.querySelector('.lbl').textContent = '@' + short;
     } else {
         btn.title = t('app.bsky.title');
         btn.querySelector('.lbl').textContent = t('app.bsky');
     }
 }
 updateBskyButton();
+
+/* ---------- OAuth boot (production only) ---------- */
+if (oauth.isOAuthHost()) {
+    oauth.init().then(sess => {
+        if (sess) {
+            updateBskyButton();
+            toast(t('bsky.oauth.signedIn'), 'ok');
+        }
+    }).catch(err => {
+        console.warn('[oauth] init failed', err);
+        toast(t('bsky.oauth.failed', { err: err?.message || err }), 'err');
+    });
+}
+
+/* Bluesky sign-in/out button: in OAuth mode the same flow is used, but the
+ * sign-out path also revokes upstream tokens. */
 
 /* ---------- Compose modal ---------- */
 

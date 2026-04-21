@@ -1,20 +1,27 @@
 /* MetaGallery — Bluesky client (AT Protocol over XRPC).
  *
- * Authentication: app-password for now (dev / pre-deploy).
- * OAuth (`@atproto/oauth-client-browser`) will replace `login()` /
- * `getSession()` once the production domain is published with a
- * `client-metadata.json`. The rest of the surface (`uploadBlob`,
- * `createPost`, `getPostByUrl`, `setThreadgate`, `resizeForUpload`)
- * stays the same.
+ * Authentication:
+ *   - On the production host (`metagallery.alanmm.dev`), the user signs in
+ *     via OAuth (see `./oauth.js`). All XRPC calls are routed through the
+ *     OAuth-bound `Agent` from `@atproto/api` (which handles DPoP, PDS
+ *     resolution and token refresh).
+ *   - On any other host (localhost / LAN / dev preview), the OAuth client
+ *     metadata isn't reachable, so we fall back to app-password auth via
+ *     `login()` against `bsky.social` and store an app-password session in
+ *     localStorage.
+ *
+ * The rest of the surface (`uploadBlob`, `createPost`, `getPostByUrl`,
+ * `setThreadgate`, `resizeForUpload`) is identical for both paths.
  *
  * Notes:
- *   - All writes hit the user's PDS. We assume bsky.social for now;
- *     accounts on third-party PDSes would need DID-doc resolution to find
- *     their service endpoint. Easy follow-up.
+ *   - App-password path assumes bsky.social PDS. OAuth path resolves the
+ *     user's real PDS automatically via the DID document.
  *   - Bluesky enforces ~976 KB / blob; we resize before upload.
  *   - Facets: URLs and #tags. @mentions need handle→DID lookups; skipped
  *     for v1 (mentions still render as plain text).
  */
+
+import * as oauth from './oauth.js';
 
 const PDS = 'https://bsky.social';
 const STORAGE_KEY = 'metagallery.bsky.session';
@@ -39,8 +46,20 @@ function saveSession() {
     else         localStorage.removeItem(STORAGE_KEY);
 }
 
-export function isLoggedIn() { return !!session; }
-export function getSession() { return session ? { ...session } : null; }
+export function isLoggedIn() { return oauth.isLoggedIn() || !!session; }
+export function getSession() {
+    if (oauth.isLoggedIn()) {
+        const did = oauth.getDid();
+        // For OAuth we don't always have the handle synchronously; expose the
+        // DID and let `getMyProfile()` fill in the rest.
+        return { did, handle: did, oauth: true };
+    }
+    return session ? { ...session } : null;
+}
+export function getDid() {
+    return oauth.isLoggedIn() ? oauth.getDid() : (session?.did || null);
+}
+export function isOAuth() { return oauth.isLoggedIn(); }
 
 /* ---------- Auth ---------- */
 
@@ -69,6 +88,8 @@ export function logout() {
     session = null;
     profileCache = null;
     saveSession();
+    // Best-effort OAuth revoke; non-blocking for the caller.
+    if (oauth.isLoggedIn()) oauth.signOut().catch(() => {});
 }
 
 async function refreshSession() {
@@ -89,6 +110,25 @@ async function refreshSession() {
 /* ---------- XRPC core ---------- */
 
 async function xrpc(method, opts = {}) {
+    // OAuth path: delegate to the @atproto/api Agent, which handles DPoP,
+    // PDS routing and token refresh transparently.
+    if (oauth.isLoggedIn()) {
+        const agent = oauth.getAgent();
+        if (!agent) throw new Error('OAuth session not ready.');
+        const callOpts = {};
+        if (opts.contentType) callOpts.encoding = opts.contentType;
+        if (opts.headers) callOpts.headers = opts.headers;
+        try {
+            const res = await agent.call(method, opts.params, opts.body, callOpts);
+            return res?.data ?? res;
+        } catch (err) {
+            // Surface the underlying error message in the same shape callers expect.
+            const msg = err?.error?.message || err?.message || `${method} failed`;
+            throw new Error(msg);
+        }
+    }
+
+    // App-password path (dev / non-prod hosts).
     if (!session) throw new Error('Not signed in.');
     const search = opts.params ? '?' + new URLSearchParams(opts.params).toString() : '';
     const url = `${PDS}/xrpc/${method}${search}`;
@@ -123,6 +163,7 @@ async function safeJson(res) {
 /* ---------- Profile ---------- */
 
 export async function getMyProfile() {
+    if (oauth.isLoggedIn()) return oauth.getMyProfile();
     if (!session) return null;
     if (profileCache) return profileCache;
     try {
@@ -301,7 +342,9 @@ function parseFacets(text) {
  * @param {'everybody'|'following'|'mentioned'|'nobody'} [opts.threadgate]
  */
 export async function createPost(opts) {
-    if (!session) throw new Error('Not signed in.');
+    if (!isLoggedIn()) throw new Error('Not signed in.');
+    const repo = getDid();
+    if (!repo) throw new Error('Could not resolve your DID.');
     const { text = '', images = [], replyTo, langs, threadgate } = opts;
 
     const record = {
@@ -336,7 +379,7 @@ export async function createPost(opts) {
 
     const created = await xrpc('com.atproto.repo.createRecord', {
         method: 'POST',
-        body: { repo: session.did, collection: 'app.bsky.feed.post', record }
+        body: { repo, collection: 'app.bsky.feed.post', record }
     });
 
     // Threadgate (only meaningful on top-level posts; skip on replies)
@@ -365,7 +408,7 @@ async function setThreadgate(postUri, mode) {
     };
     await xrpc('com.atproto.repo.createRecord', {
         method: 'POST',
-        body: { repo: session.did, collection: 'app.bsky.feed.threadgate', rkey, record }
+        body: { repo: getDid(), collection: 'app.bsky.feed.threadgate', rkey, record }
     });
 }
 
@@ -374,7 +417,7 @@ export function postUriToWebUrl(uri, handle) {
     // at://did:plc:xxx/app.bsky.feed.post/3kabc
     const parts = String(uri).split('/');
     const rkey = parts[parts.length - 1];
-    const id = handle || session?.handle || parts[2];
+    const id = handle || session?.handle || getDid() || parts[2];
     return `https://bsky.app/profile/${id}/post/${rkey}`;
 }
 

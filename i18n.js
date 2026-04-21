@@ -124,6 +124,13 @@ const dict = {
         'bsky.login.confirmSignOut':'Signed in as @{handle}. Sign out?',
         'bsky.btn.signedInTitle':   'Signed in as @{handle} — click to sign out',
 
+        // ---------- Bluesky OAuth ----------
+        'bsky.oauth.intro':         'Enter your Bluesky handle to continue. You\'ll be redirected to your provider to authorize MetaGallery, then bounced back here.',
+        'bsky.oauth.continue':      'Continue →',
+        'bsky.oauth.redirecting':   'Redirecting to Bluesky…',
+        'bsky.oauth.signedIn':      'Signed in to Bluesky.',
+        'bsky.oauth.failed':        'Sign-in failed: {err}',
+
         // ---------- Bluesky compose modal ----------
         'bsky.compose.cancel':       'Cancel',
         'bsky.compose.post':         'Post',
@@ -264,6 +271,12 @@ const dict = {
         'bsky.login.signedOut':     'Desconectado do Bluesky.',
         'bsky.login.confirmSignOut':'Conectado como @{handle}. Desconectar?',
         'bsky.btn.signedInTitle':   'Conectado como @{handle} — clique para sair',
+
+        'bsky.oauth.intro':         'Digite seu handle do Bluesky para continuar. Você será redirecionado para o seu provedor para autorizar o MetaGallery e então voltar para cá.',
+        'bsky.oauth.continue':      'Continuar →',
+        'bsky.oauth.redirecting':   'Redirecionando ao Bluesky…',
+        'bsky.oauth.signedIn':      'Conectado ao Bluesky.',
+        'bsky.oauth.failed':        'Falha no login: {err}',
 
         'bsky.compose.cancel':       'Cancelar',
         'bsky.compose.post':         'Postar',
