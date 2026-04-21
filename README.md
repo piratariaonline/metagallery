@@ -156,5 +156,5 @@ vendor/atproto-oauth.bundle.js (gerado por `npm run build:vendor`)
 
 ## Licença
 
-Código aberto, sem propaganda, sem rastreamento. Feito com 🦋 por
-[@piratariaonline.bsky.social](https://bsky.app/profile/piratariaonline.bsky.social).
+Código aberto, sem propaganda, sem rastreamento. vibecodado por
+[@piratariaonline.bsky.social](https://bsky.app/profile/piratariaonline.bsky.social) numa tarde de feriado pra tentar resolver uma inconveniência sobre acessibilidade na rede.
