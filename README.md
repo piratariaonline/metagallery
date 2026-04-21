@@ -55,6 +55,7 @@ Abra <http://localhost:5173>.
 
 ## Notas e limitações
 
+- Suporte a iOS é extremamente limitado no momento.
 - Edição de metadados via JPEG usa `piexifjs`; PNG e WebP usam parsers próprios
     embutidos no `metadata.js`. AVIF/GIF/BMP ficam apenas como pré-visualização.
 - O fluxo "Escolher arquivos" não consegue salvar no local original
