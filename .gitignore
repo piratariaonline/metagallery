@@ -1,0 +1,4 @@
+node_modules/
+# Local mkcert artefacts — keys are private, the rootCA is user-specific.
+.certs/
+

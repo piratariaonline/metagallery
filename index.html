@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d10" />
+    <meta name="description" content="Edit metadata of your local picture files - 100% in your browser." />
+    <title>MetaGallery — local photo metadata editor</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+    <script>
+        // Tiny early bootstrap: if a new service worker takes control or
+        // signals us that it just replaced an older cache, reload once so we
+        // never end up running stale HTML/CSS/JS from the previous version.
+        (function () {
+            if (!('serviceWorker' in navigator)) return;
+            var reloaded = false;
+            function reloadOnce() {
+                if (reloaded) return;
+                reloaded = true;
+                location.reload();
+            }
+            navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+            navigator.serviceWorker.addEventListener('message', function (e) {
+                if (e.data && e.data.type === 'SW_UPDATED') reloadOnce();
+            });
+        })();
+    </script>
+    <header class="topbar">
+        <div class="brand">
+            <button id="btn-toggle-sidebar" class="icon-btn" title="Show files" aria-label="Toggle file list">☰</button>
+            <img src="./icons/icon.svg" alt="" width="28" height="28" />
+            <h1>MetaGallery</h1>
+            <span class="tag">local · private · offline</span>
+        </div>
+        <div class="actions">
+            <button id="btn-open-dir" class="primary" title="Open a folder (Chromium browsers)">📁 <span class="lbl">Open folder</span></button>
+            <button id="btn-open-files" title="Pick individual files">🖼 <span class="lbl">Pick files</span></button>
+            <button id="btn-install" hidden>⬇ <span class="lbl">Install</span></button>
+        </div>
+    </header>
+
+    <div id="sidebar-backdrop" class="backdrop" hidden></div>
+
+    <main class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-head">
+                <strong id="folder-name">No folder loaded</strong>
+                <small id="file-count"></small>
+            </div>
+            <input id="filter" type="search" placeholder="Filter by filename…" />
+            <div class="search-opts">
+                <label title="Also match the Title / Description metadata field">
+                    <input type="checkbox" id="search-title" checked /> Title
+                </label>
+                <label title="Also match the User comment metadata field">
+                    <input type="checkbox" id="search-desc" checked /> Description
+                </label>
+            </div>
+            <p id="search-status" class="search-status" aria-live="polite" hidden></p>
+            <ul id="file-list" class="file-list"></ul>
+        </aside>
+
+        <section class="gallery" id="gallery">
+            <div class="empty" id="empty-state">
+                <h2>Edit your photos' metadata, locally.</h2>
+                <p>
+                    Open a folder or pick some <code>.jpg</code> / <code>.jpeg</code> files.
+                    Your files never leave your device — everything runs in your browser.
+                </p>
+                <ul class="hints">
+                    <li>✔ Works offline once loaded (PWA, installable)</li>
+                    <li>✔ Edits <strong>JPEG</strong> (EXIF + Windows XP tags), <strong>PNG</strong> (tEXt/iTXt + eXIf chunk) and <strong>WebP</strong> (EXIF + XMP)</li>
+                    <li>⚠ Folder write-back requires a Chromium browser (Chrome / Edge / Brave / Opera).</li>
+                </ul>
+            </div>
+        </section>
+
+        <aside class="editor" id="editor" hidden>
+            <header class="editor-head">
+                <div>
+                    <strong id="editor-name">—</strong>
+                    <small id="editor-meta"></small>
+                </div>
+                <button id="btn-close-editor" title="Close">✕</button>
+            </header>
+            <div class="preview-wrap">
+                <img id="preview" alt="Selected picture preview" />
+            </div>
+
+            <form id="meta-form" class="meta-form" autocomplete="off">
+                <fieldset>
+                    <legend>Description</legend>
+                    <label>Title / Description
+                        <input name="ImageDescription" type="text" />
+                    </label>
+                    <label>User comment
+                        <textarea name="UserComment" rows="2"></textarea>
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Authoring</legend>
+                    <label>Artist / Author
+                        <input name="Artist" type="text" />
+                    </label>
+                    <label>Copyright
+                        <input name="Copyright" type="text" />
+                    </label>
+                    <label>Software
+                        <input name="Software" type="text" />
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Date taken</legend>
+                    <label>Date / time (original)
+                        <input name="DateTimeOriginal" type="datetime-local" step="1" />
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Camera</legend>
+                    <label>Camera make
+                        <input name="Make" type="text" />
+                    </label>
+                    <label>Camera model
+                        <input name="Model" type="text" />
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Location (GPS)</legend>
+                    <div class="row">
+                        <label>Latitude
+                            <input name="GPSLatitude" type="number" step="any" placeholder="e.g. 48.8584" />
+                        </label>
+                        <label>Longitude
+                            <input name="GPSLongitude" type="number" step="any" placeholder="e.g. 2.2945" />
+                        </label>
+                    </div>
+                    <label>Altitude (m)
+                        <input name="GPSAltitude" type="number" step="any" />
+                    </label>
+                    <button type="button" id="btn-clear-gps" class="ghost">Clear GPS</button>
+                </fieldset>
+
+                <div class="form-actions">
+                    <button type="button" id="btn-revert" class="ghost" title="Discard changes">↻ Revert</button>
+                    <button type="submit" id="btn-save" class="primary" title="Save back to original file">💾 Save</button>
+                    <button type="button" id="btn-download" title="Download a copy with new metadata">📥 Download</button>
+                </div>
+                <p id="save-status" class="status" aria-live="polite"></p>
+            </form>
+        </aside>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- piexifjs for EXIF read/write (JPEG) -->
+    <script src="./vendor/piexif.min.js"></script>
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

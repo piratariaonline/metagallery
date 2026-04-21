@@ -1,0 +1,351 @@
+:root {
+    --bg: #0b0d10;
+    --panel: #14181d;
+    --panel-2: #1b2026;
+    --border: #262d35;
+    --text: #e7ecf2;
+    --muted: #8a96a6;
+    --accent: #4f8cff;
+    --accent-2: #2f6fe6;
+    --danger: #ff5d6c;
+    --ok: #4ade80;
+    --warn: #f5b945;
+    --radius: 10px;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+/* Make sure the HTML `hidden` attribute always wins over display rules */
+[hidden] { display: none !important; }
+body {
+    margin: 0;
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+}
+
+/* Topbar */
+.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.tag {
+    font-size: 11px; color: var(--muted);
+    border: 1px solid var(--border); padding: 2px 6px; border-radius: 999px;
+}
+.actions { display: flex; gap: 8px; }
+
+/* Hamburger only shown on small screens */
+.icon-btn {
+    display: none;
+    padding: 6px 10px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font: inherit;
+    transition: background .15s, border-color .15s, transform .05s;
+}
+button:hover { background: #232a32; }
+button:active { transform: translateY(1px); }
+button.primary {
+    background: var(--accent); border-color: var(--accent-2); color: white;
+}
+button.primary:hover { background: var(--accent-2); }
+button.ghost { background: transparent; }
+button[disabled] { opacity: .55; cursor: not-allowed; }
+
+/* Layout */
+.layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 380px;
+    height: calc(100% - 51px);
+}
+.layout.no-editor { grid-template-columns: 260px 1fr; }
+
+/* Sidebar */
+.sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    min-height: 0;
+}
+.sidebar-head { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.sidebar-head strong { display: block; font-weight: 600; }
+.sidebar-head small { color: var(--muted); }
+#filter {
+    margin: 8px 12px; padding: 6px 8px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
+}
+.search-opts {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin: 0 12px 4px;
+    font-size: 12px; color: var(--muted);
+}
+.search-opts label {
+    display: inline-flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+}
+.search-opts input[type="checkbox"] {
+    margin: 0; cursor: pointer;
+}
+.search-status {
+    margin: 4px 12px 6px;
+    font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+    min-height: 1.2em;
+}
+.search-status .spin {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+    flex: 0 0 auto;
+}
+.file-list {
+    list-style: none; margin: 0; padding: 4px 6px;
+    overflow: auto; flex: 1;
+}
+.file-list li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px; cursor: pointer;
+    color: var(--text);
+}
+.file-list li:hover { background: var(--panel-2); }
+.file-list li.active { background: #1f2a3d; outline: 1px solid var(--accent-2); }
+.file-list li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-list li .badge { font-size: 10px; color: var(--muted); }
+.file-list li.dirty .name::after {
+    content: "●"; color: var(--warn); margin-left: 6px;
+}
+
+/* Gallery */
+.gallery {
+    overflow: auto;
+    padding: 14px;
+    display: grid;
+    /* Same minimum tile size on every device so a phone doesn't end up with
+       cramped/flattened thumbs. The grid auto-fills as many columns as fit. */
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    /* Force each row to be content-sized. Without this, some browsers try to
+       distribute leftover vertical space into rows and tiles get squashed. */
+    grid-auto-rows: min-content;
+    gap: 12px;
+    align-content: start;
+}
+.gallery .empty {
+    grid-column: 1 / -1;
+    max-width: 560px; margin: 8vh auto; text-align: center;
+    color: var(--muted);
+}
+.gallery .empty h2 { color: var(--text); }
+.gallery .empty .hints { text-align: left; display: inline-block; margin-top: 12px; }
+
+.thumb {
+    background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer;
+    /* Square tile. Using aspect-ratio (not the padding-bottom hack) because
+       the grid track-sizing algorithm respects it during intrinsic sizing,
+       which prevents rows from collapsing to just the label height. */
+    aspect-ratio: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    transition: border-color .15s, transform .1s;
+}
+.thumb:hover { border-color: var(--accent); }
+.thumb.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,140,255,.25); }
+.thumb .img-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;           /* allow the flex child to actually shrink */
+    width: 100%;
+    background: #0a0c0f;
+    overflow: hidden;
+}
+.thumb .img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity .25s ease-out;
+}
+.thumb .img.loaded { opacity: 1; }
+
+/* Shimmer placeholder while a thumbnail is being generated */
+.thumb .img-wrap.loading::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(110deg,
+        rgba(255,255,255,.02) 25%,
+        rgba(255,255,255,.08) 45%,
+        rgba(255,255,255,.02) 65%);
+    background-size: 200% 100%;
+    animation: thumb-shimmer 1.3s linear infinite;
+}
+.thumb .img-wrap.failed::after {
+    content: "⚠";
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    color: var(--muted); font-size: 22px;
+}
+@keyframes thumb-shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+}
+
+/* Loading hint shown in the gallery area while a folder is being read */
+.gallery-loading {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 40px 16px;
+    color: var(--muted); font-size: 14px;
+}
+.gallery-loading .spin {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.thumb .label {
+    flex: 0 0 auto;
+    padding: 6px 8px; font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+}
+.thumb.dirty .label::after {
+    content: " ●"; color: var(--warn);
+}
+
+/* Editor */
+.editor {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    min-height: 0;
+}
+.editor-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.editor-head strong { display: block; }
+.editor-head small { color: var(--muted); display: block; }
+.preview-wrap {
+    background: #050608;
+    height: 220px;
+    display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid var(--border);
+}
+#preview { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.meta-form { padding: 12px; overflow: auto; flex: 1; }
+.meta-form fieldset {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px 12px;
+    margin: 0 0 12px;
+}
+.meta-form legend { padding: 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.meta-form label { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.meta-form input, .meta-form textarea {
+    width: 100%; margin-top: 3px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; font: inherit;
+}
+.meta-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form-actions {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+}
+.status { margin-top: 8px; min-height: 1.2em; font-size: 12px; color: var(--muted); }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--danger); }
+
+/* Toast */
+.toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1d2530; color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 14px; font-size: 13px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 100;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.err { border-color: var(--danger); }
+.toast.ok { border-color: var(--ok); }
+
+/* Backdrop for the mobile sidebar drawer */
+.backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, .55);
+    z-index: 40;
+    animation: fadeIn .15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Responsive */
+@media (max-width: 1100px) {
+    .layout { grid-template-columns: 220px 1fr 340px; }
+}
+@media (max-width: 820px) {
+    .icon-btn { display: inline-block; }
+    .tag { display: none; }
+
+    /* Compact action buttons: icon-only */
+    .topbar { padding: 8px 10px; gap: 8px; }
+    .brand { gap: 6px; min-width: 0; }
+    .brand h1 { font-size: 15px; margin-right: 6px; }
+    .actions { gap: 6px; }
+    .actions button { padding: 6px 10px; font-size: 16px; line-height: 1; }
+    .actions .lbl { display: none; }
+
+    /* Larger, easier-to-tap thumbnails on mobile */
+    .gallery {
+        padding: 10px;
+        gap: 10px;
+        /* Inherit the desktop minmax(180px, 1fr) — DON'T force a column count
+           here, otherwise narrow viewports squash tiles into tiny pills. */
+    }
+    /* No room for filename labels on a phone — image is the label */
+    .thumb .label { display: none; }
+
+    /* Single-column layout: just the gallery occupies the main area. */
+    .layout, .layout.no-editor {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+    }
+
+    /* Sidebar becomes an off-canvas drawer, hidden by default */
+    .sidebar {
+        position: fixed;
+        top: 51px; bottom: 0; left: 0;
+        width: min(86vw, 340px);
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform .2s ease-out;
+        border-right: 1px solid var(--border);
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    /* Editor as fullscreen overlay */
+    .editor {
+        position: fixed; inset: 51px 0 0 0; z-index: 60;
+        border-left: none;
+    }
+    .preview-wrap { height: 38vh; }
+}
