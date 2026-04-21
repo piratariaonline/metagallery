@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#0b0d10" />
     <meta name="description" content="Edit metadata of your local picture files - 100% in your browser." />
-    <title>MetaGallery — local photo metadata editor</title>
+    <title>MetaGallery</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
@@ -32,16 +32,21 @@
     </script>
     <header class="topbar">
         <div class="brand">
-            <button id="btn-toggle-sidebar" class="icon-btn" title="Show files" aria-label="Toggle file list">☰</button>
+            <button id="btn-toggle-sidebar" class="icon-btn" data-i18n-attr="title:app.toggleSidebar,aria-label:app.toggleSidebar.aria">☰</button>
             <img src="./icons/icon.svg" alt="" width="28" height="28" />
             <h1>MetaGallery</h1>
-            <span class="tag">local · private · offline</span>
+            <span class="tag" data-i18n="app.tag">local · private · offline</span>
         </div>
         <div class="actions">
-            <button id="btn-open-dir" class="primary" title="Open a folder (Chromium browsers)">📁 <span class="lbl">Open folder</span></button>
-            <button id="btn-open-files" title="Pick individual files">🖼 <span class="lbl">Pick files</span></button>
-            <button id="btn-bsky" title="Sign in to Bluesky">🦋 <span class="lbl">Bluesky</span></button>
-            <button id="btn-install" hidden>⬇ <span class="lbl">Install</span></button>
+            <button id="btn-help" class="icon-btn" data-i18n-attr="title:app.help.title,aria-label:app.help">?</button>
+            <select id="lang-switch" class="lang-switch" data-i18n-attr="title:app.lang.title" aria-label="Language">
+                <option value="en">EN</option>
+                <option value="pt-BR">PT-BR</option>
+            </select>
+            <button id="btn-open-dir" class="primary" data-i18n-attr="title:app.openFolder.title">📁 <span class="lbl" data-i18n="app.openFolder">Open folder</span></button>
+            <button id="btn-open-files" data-i18n-attr="title:app.pickFiles.title">🖼 <span class="lbl" data-i18n="app.pickFiles">Pick files</span></button>
+            <button id="btn-bsky" data-i18n-attr="title:app.bsky.title">🦋 <span class="lbl" data-i18n="app.bsky">Bluesky</span></button>
+            <button id="btn-install" hidden>⬇ <span class="lbl" data-i18n="app.install">Install</span></button>
         </div>
     </header>
 
@@ -50,16 +55,19 @@
     <main class="layout">
         <aside class="sidebar">
             <div class="sidebar-head">
-                <strong id="folder-name">No folder loaded</strong>
+                <strong id="folder-name" data-i18n="sidebar.noFolder">No folder loaded</strong>
                 <small id="file-count"></small>
             </div>
-            <input id="filter" type="search" placeholder="Filter by filename…" />
+            <div class="filter-wrap">
+                <input id="filter" type="search" data-i18n-attr="placeholder:sidebar.filter" placeholder="Filter by filename…" />
+                <button type="button" id="filter-clear" class="filter-clear" data-i18n-attr="title:sidebar.filter.clear,aria-label:sidebar.filter.clear" hidden>✕</button>
+            </div>
             <div class="search-opts">
-                <label title="Also match the Title / Description metadata field">
-                    <input type="checkbox" id="search-title" checked /> Title
+                <label data-i18n-attr="title:sidebar.opt.title.help">
+                    <input type="checkbox" id="search-title" checked /> <span data-i18n="sidebar.opt.title">Title</span>
                 </label>
-                <label title="Also match the User comment metadata field">
-                    <input type="checkbox" id="search-desc" checked /> Description
+                <label data-i18n-attr="title:sidebar.opt.desc.help">
+                    <input type="checkbox" id="search-desc" checked /> <span data-i18n="sidebar.opt.desc">Description</span>
                 </label>
             </div>
             <p id="search-status" class="search-status" aria-live="polite" hidden></p>
@@ -68,15 +76,14 @@
 
         <section class="gallery" id="gallery">
             <div class="empty" id="empty-state">
-                <h2>Edit your photos' metadata, locally.</h2>
-                <p>
-                    Open a folder or pick some <code>.jpg</code> / <code>.jpeg</code> files.
-                    Your files never leave your device — everything runs in your browser.
+                <h2 data-i18n="gallery.tagline">Curated images with native captions, ready to reuse on Bluesky.</h2>
+                <p data-i18n="gallery.intro">
+                    Open a folder or pick some image files. Your files never leave your device.
                 </p>
                 <ul class="hints">
-                    <li>✔ Works offline once loaded (PWA, installable)</li>
-                    <li>✔ Edits <strong>JPEG</strong> (EXIF + Windows XP tags), <strong>PNG</strong> (tEXt/iTXt + eXIf chunk) and <strong>WebP</strong> (EXIF + XMP)</li>
-                    <li>⚠ Folder write-back requires a Chromium browser (Chrome / Edge / Brave / Opera).</li>
+                    <li data-i18n="gallery.hint.offline">✔ Works offline once loaded (PWA, installable)</li>
+                    <li data-i18n-html="gallery.hint.formats">✔ Edits <strong>JPEG</strong>, <strong>PNG</strong> and <strong>WebP</strong></li>
+                    <li data-i18n="gallery.hint.chromium">⚠ Folder write-back requires a Chromium browser.</li>
                 </ul>
             </div>
         </section>
@@ -87,73 +94,73 @@
                     <strong id="editor-name">—</strong>
                     <small id="editor-meta"></small>
                 </div>
-                <button id="btn-close-editor" title="Close">✕</button>
+                <button id="btn-close-editor" data-i18n-attr="title:editor.close,aria-label:editor.close">✕</button>
             </header>
             <div class="preview-wrap">
-                <img id="preview" alt="Selected picture preview" />
+                <img id="preview" data-i18n-attr="alt:editor.preview" />
             </div>
 
             <form id="meta-form" class="meta-form" autocomplete="off">
                 <fieldset>
-                    <legend>Description</legend>
-                    <label>Title / Description
+                    <legend data-i18n="editor.fs.description">Description</legend>
+                    <label><span data-i18n="editor.f.title">Title / Description</span>
                         <input name="ImageDescription" type="text" />
                     </label>
-                    <label>User comment
+                    <label><span data-i18n="editor.f.userComment">User comment</span>
                         <textarea name="UserComment" rows="2"></textarea>
                     </label>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Authoring</legend>
-                    <label>Artist / Author
+                    <legend data-i18n="editor.fs.authoring">Authoring</legend>
+                    <label><span data-i18n="editor.f.artist">Artist / Author</span>
                         <input name="Artist" type="text" />
                     </label>
-                    <label>Copyright
+                    <label><span data-i18n="editor.f.copyright">Copyright</span>
                         <input name="Copyright" type="text" />
                     </label>
-                    <label>Software
+                    <label><span data-i18n="editor.f.software">Software</span>
                         <input name="Software" type="text" />
                     </label>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Date taken</legend>
-                    <label>Date / time (original)
+                    <legend data-i18n="editor.fs.dateTaken">Date taken</legend>
+                    <label><span data-i18n="editor.f.dateOriginal">Date / time (original)</span>
                         <input name="DateTimeOriginal" type="datetime-local" step="1" />
                     </label>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Camera</legend>
-                    <label>Camera make
+                    <legend data-i18n="editor.fs.camera">Camera</legend>
+                    <label><span data-i18n="editor.f.make">Camera make</span>
                         <input name="Make" type="text" />
                     </label>
-                    <label>Camera model
+                    <label><span data-i18n="editor.f.model">Camera model</span>
                         <input name="Model" type="text" />
                     </label>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Location (GPS)</legend>
+                    <legend data-i18n="editor.fs.location">Location (GPS)</legend>
                     <div class="row">
-                        <label>Latitude
+                        <label><span data-i18n="editor.f.lat">Latitude</span>
                             <input name="GPSLatitude" type="number" step="any" placeholder="e.g. 48.8584" />
                         </label>
-                        <label>Longitude
+                        <label><span data-i18n="editor.f.lon">Longitude</span>
                             <input name="GPSLongitude" type="number" step="any" placeholder="e.g. 2.2945" />
                         </label>
                     </div>
-                    <label>Altitude (m)
+                    <label><span data-i18n="editor.f.alt">Altitude (m)</span>
                         <input name="GPSAltitude" type="number" step="any" />
                     </label>
-                    <button type="button" id="btn-clear-gps" class="ghost">Clear GPS</button>
+                    <button type="button" id="btn-clear-gps" class="ghost" data-i18n="editor.gps.clear">Clear GPS</button>
                 </fieldset>
 
                 <div class="form-actions">
-                    <button type="button" id="btn-revert" class="ghost" title="Discard changes">↻ Revert</button>
-                    <button type="submit" id="btn-save" class="primary" title="Save back to original file">💾 Save</button>
-                    <button type="button" id="btn-download" title="Download a copy with new metadata">📥 Download</button>
+                    <button type="button" id="btn-revert" class="ghost" data-i18n-attr="title:editor.action.revert.title">↻ <span data-i18n="editor.action.revert">Revert</span></button>
+                    <button type="submit" id="btn-save" class="primary" data-i18n-attr="title:editor.action.save.title">💾 <span data-i18n="editor.action.save">Save</span></button>
+                    <button type="button" id="btn-download" data-i18n-attr="title:editor.action.download.title">📥 <span data-i18n="editor.action.download">Download</span></button>
                 </div>
                 <p id="save-status" class="status" aria-live="polite"></p>
             </form>
@@ -164,34 +171,31 @@
 
     <!-- Selection action bar (appears when ≥1 thumb is selected) -->
     <div id="selection-bar" class="selection-bar" hidden>
-        <span><strong id="sel-count">0</strong> / 4 selected</span>
-        <button type="button" id="sel-clear" class="ghost">Clear</button>
-        <button type="button" id="sel-post" class="primary">🦋 Post to Bluesky</button>
+        <span id="sel-count-wrap"><strong id="sel-count">0</strong> / 4</span>
+        <button type="button" id="sel-clear" class="ghost" data-i18n="sel.clear">Clear</button>
+        <button type="button" id="sel-post" class="primary">🦋 <span data-i18n="sel.post">Post to Bluesky</span></button>
     </div>
 
     <!-- Bluesky sign-in modal (app password — temporary, OAuth coming) -->
     <div id="bsky-login-modal" class="modal" hidden>
         <div class="modal-card">
             <header class="modal-head">
-                <h2>Sign in to Bluesky</h2>
+                <h2 data-i18n="bsky.login.title">Sign in to Bluesky</h2>
                 <button type="button" class="ghost" data-close-modal>✕</button>
             </header>
             <div class="modal-body">
-                <p class="muted">
-                    Use an <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener">app password</a>
-                    (not your main password). OAuth sign-in arrives once the app is deployed.
-                </p>
+                <p class="muted" id="bsky-login-intro"></p>
                 <form id="bsky-login-form" autocomplete="off">
-                    <label>Handle
+                    <label><span data-i18n="bsky.login.handle">Handle</span>
                         <input type="text" name="identifier" placeholder="alice.bsky.social" required />
                     </label>
-                    <label>App password
+                    <label><span data-i18n="bsky.login.password">App password</span>
                         <input type="password" name="password" placeholder="xxxx-xxxx-xxxx-xxxx" required />
                     </label>
                     <p id="bsky-login-status" class="status" aria-live="polite"></p>
                     <div class="form-actions">
-                        <button type="button" class="ghost" data-close-modal>Cancel</button>
-                        <button type="submit" class="primary">Sign in</button>
+                        <button type="button" class="ghost" data-close-modal data-i18n="bsky.login.cancel">Cancel</button>
+                        <button type="submit" class="primary" data-i18n="bsky.login.submit">Sign in</button>
                     </div>
                 </form>
             </div>
@@ -202,17 +206,17 @@
     <div id="bsky-compose-modal" class="modal" hidden>
         <div class="modal-card compose">
             <header class="compose-head">
-                <button type="button" class="ghost" id="bsky-cancel">Cancel</button>
+                <button type="button" class="ghost" id="bsky-cancel" data-i18n="bsky.compose.cancel">Cancel</button>
                 <div class="compose-head-right">
                     <span id="bsky-me" class="muted"></span>
-                    <button type="button" class="primary" id="bsky-post-btn" disabled>Post</button>
+                    <button type="button" class="primary" id="bsky-post-btn" disabled data-i18n="bsky.compose.post">Post</button>
                 </div>
             </header>
             <div class="compose-body">
                 <div id="bsky-reply-ribbon" class="reply-card" hidden>
                     <div class="reply-card-head">
-                        <span class="reply-label">Replying to</span>
-                        <button type="button" class="ghost mini" id="bsky-reply-clear" title="Cancel reply">✕</button>
+                        <span class="reply-label" data-i18n="bsky.compose.replyingTo">Replying to</span>
+                        <button type="button" class="ghost mini" id="bsky-reply-clear" data-i18n-attr="title:bsky.compose.cancelReply,aria-label:bsky.compose.cancelReply">✕</button>
                     </div>
                     <div class="reply-card-author">
                         <img id="bsky-reply-avatar" class="avatar small" alt="" />
@@ -226,29 +230,53 @@
                 </div>
                 <div id="bsky-reply-input" class="reply-input">
                     <label>
-                        <input type="checkbox" id="bsky-reply-toggle" /> Reply to an existing post
+                        <input type="checkbox" id="bsky-reply-toggle" /> <span data-i18n="bsky.compose.replyTo">Reply to an existing post</span>
                     </label>
-                    <input type="url" id="bsky-reply-url" placeholder="https://bsky.app/profile/.../post/..." hidden />
+                    <input type="url" id="bsky-reply-url" data-i18n-attr="placeholder:bsky.compose.replyURL" placeholder="https://bsky.app/profile/.../post/..." hidden />
                     <p id="bsky-reply-status" class="status" hidden></p>
                 </div>
                 <div class="compose-row">
                     <img id="bsky-avatar" class="avatar" alt="" />
-                    <textarea id="bsky-text" placeholder="What's up?" rows="4" maxlength="3000"></textarea>
+                    <textarea id="bsky-text" data-i18n-attr="placeholder:bsky.compose.placeholder" placeholder="What's up?" rows="4" maxlength="3000"></textarea>
                 </div>
                 <div id="bsky-images" class="bsky-images"></div>
                 <p id="bsky-post-status" class="status" aria-live="polite"></p>
             </div>
             <footer class="compose-foot">
-                <select id="bsky-threadgate" title="Who can reply">
-                    <option value="everybody">🌐 Anyone can reply</option>
-                    <option value="following">👥 Followers can reply</option>
-                    <option value="mentioned">@ Mentioned only</option>
-                    <option value="nobody">🔒 No one can reply</option>
+                <select id="bsky-threadgate" data-i18n-attr="title:bsky.compose.tg.title">
+                    <option value="everybody" data-i18n="bsky.compose.tg.everybody">🌐 Anyone can reply</option>
+                    <option value="following" data-i18n="bsky.compose.tg.following">👥 Followers can reply</option>
+                    <option value="mentioned" data-i18n="bsky.compose.tg.mentioned">@ Mentioned only</option>
+                    <option value="nobody" data-i18n="bsky.compose.tg.nobody">🔒 No one can reply</option>
                 </select>
-                <button type="button" id="bsky-signout" class="ghost mini" title="Sign out of Bluesky">Sign out</button>
+                <button type="button" id="bsky-signout" class="ghost mini" data-i18n="bsky.compose.signOut" data-i18n-attr="title:bsky.compose.signOut.title">Sign out</button>
                 <span class="spacer"></span>
-                <select id="bsky-lang" title="Post language"></select>
+                <select id="bsky-lang" data-i18n-attr="title:bsky.compose.lang.title"></select>
                 <span id="bsky-count" class="count">300</span>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Welcome / how-to modal -->
+    <div id="welcome-modal" class="modal" hidden>
+        <div class="modal-card welcome-card">
+            <header class="modal-head">
+                <h2 data-i18n="welcome.title">Welcome to MetaGallery</h2>
+                <button type="button" class="ghost" data-close-modal>✕</button>
+            </header>
+            <div class="modal-body welcome-body">
+                <p data-i18n-html="welcome.intro"></p>
+                <p data-i18n-html="welcome.why"></p>
+                <p data-i18n-html="welcome.editor"></p>
+                <p data-i18n-html="welcome.search"></p>
+                <p data-i18n-html="welcome.bsky"></p>
+                <p class="author" data-i18n-html="welcome.author"></p>
+            </div>
+            <footer class="welcome-foot">
+                <label class="skip">
+                    <input type="checkbox" id="welcome-skip" /> <span data-i18n="welcome.skip">Don't show again</span>
+                </label>
+                <button type="button" class="primary" id="welcome-ok" data-i18n="welcome.gotIt">Got it</button>
             </footer>
         </div>
     </div>

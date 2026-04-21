@@ -3,8 +3,61 @@ import { readMetadata, writeMetadata, detectFormat, isWritable, EMPTY_VALUES } f
 import { getThumb, getCachedThumb, clearThumbCache } from './thumbs.js';
 import { startIndexing, cancelIndexing, isIndexingDone, indexReady } from './searchIndex.js';
 import * as bsky from './bluesky.js';
+import { t, tHtml, applyI18n, setLocale, getLocale, getAvailableLocales } from './i18n.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
+
+/* ---------- i18n boot ---------- */
+applyI18n();
+{
+    const sel = $('#lang-switch');
+    if (sel) {
+        // Populate (in case we add locales later) and select the active one.
+        sel.innerHTML = '';
+        for (const loc of getAvailableLocales()) {
+            const o = document.createElement('option');
+            o.value = loc;
+            o.textContent = loc.toUpperCase().replace('-BR', '-BR');
+            sel.appendChild(o);
+        }
+        sel.value = getLocale();
+        sel.addEventListener('change', () => setLocale(sel.value));
+    }
+}
+document.addEventListener('localechange', () => {
+    // Refresh anything that's not driven by data-i18n attributes.
+    updateBskyButton();
+    // Re-render gallery & sidebar so empty-state and counts pick up the new locale.
+    if (items.length === 0) renderGallery();
+    else { renderFileList(visibleItems || items); renderGallery(); }
+    updateSelectionUI();
+});
+
+/* ---------- Welcome / help modal ---------- */
+const WELCOME_KEY = 'metagallery.welcomeSeen';
+function openWelcome() {
+    const m = $('#welcome-modal');
+    if (!m) return;
+    $('#welcome-skip').checked = false;
+    m.hidden = false;
+}
+function closeWelcome() {
+    const m = $('#welcome-modal');
+    if (!m) return;
+    if ($('#welcome-skip').checked) {
+        try { localStorage.setItem(WELCOME_KEY, '1'); } catch {}
+    }
+    m.hidden = true;
+}
+$('#btn-help')?.addEventListener('click', openWelcome);
+$('#welcome-ok')?.addEventListener('click', closeWelcome);
+// Auto-open on first visit.
+try {
+    if (!localStorage.getItem(WELCOME_KEY)) {
+        // Defer one tick so the page paints first.
+        setTimeout(openWelcome, 50);
+    }
+} catch {}
 
 const PREVIEWABLE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const IS_EMBEDDED = window.self !== window.top;
@@ -81,11 +134,11 @@ $('#btn-install').addEventListener('click', async () => {
 /* ---------- File / folder loading ---------- */
 $('#btn-open-dir').addEventListener('click', async () => {
     if (!('showDirectoryPicker' in window)) {
-        toast('Your browser cannot open a folder. Use "Pick files" instead, or try Chrome/Edge.', 'err');
+        toast(t('folder.unsupported'), 'err');
         return;
     }
     if (IS_EMBEDDED) {
-        toast('Folder access is blocked inside an embedded preview. Open the app in a real browser tab (e.g. http://localhost:5173).', 'err');
+        toast(t('folder.embedded'), 'err');
         return;
     }
     try {
@@ -94,7 +147,7 @@ $('#btn-open-dir').addEventListener('click', async () => {
     } catch (e) {
         if (e?.name === 'AbortError') return;
         console.error(e);
-        toast('Open folder failed: ' + (e?.message || e?.name || e), 'err');
+        toast(t('folder.openFailed', { err: e?.message || e?.name || e }), 'err');
     }
 });
 
@@ -136,8 +189,8 @@ async function loadDirectory(handle) {
     // Show a loading indicator immediately — enumerating a large folder
     // (DCIM, Downloads…) can take a noticeable moment before render.
     const gEl = $('#gallery');
-    if (gEl) gEl.innerHTML = '<div class="gallery-loading"><div class="spin"></div>Loading folder…</div>';
-    $('#folder-name').textContent = handle.name ? `Loading ${handle.name}…` : 'Loading…';
+    if (gEl) gEl.innerHTML = `<div class="gallery-loading"><div class="spin"></div>${escapeHtml(t('gallery.loading'))}</div>`;
+    $('#folder-name').textContent = handle.name ? t('gallery.loadingName', { name: handle.name }) : t('gallery.loading');
     const collected = [];
     for await (const [name, entry] of handle.entries()) {
         if (entry.kind !== 'file') continue;
@@ -158,8 +211,8 @@ function setItems(arr, folderName) {
     items.push(...arr);
     visibleItems = items;
     currentIndex = -1;
-    $('#folder-name').textContent = folderName || (arr.length ? `${arr.length} file(s)` : 'No folder loaded');
-    $('#file-count').textContent  = arr.length ? `${arr.length} image(s)` : '';
+    $('#folder-name').textContent = folderName || (arr.length ? t('sidebar.fileCount', { n: arr.length }) : t('sidebar.noFolder'));
+    $('#file-count').textContent  = arr.length ? t('sidebar.imageCount', { n: arr.length }) : '';
     $('#empty-state')?.remove();
     renderFileList();
     renderGallery();
@@ -187,8 +240,15 @@ let searchToken = 0;
 let searchDebounceT = 0;
 
 $('#filter').addEventListener('input', () => {
+    $('#filter-clear').hidden = !$('#filter').value;
     clearTimeout(searchDebounceT);
     searchDebounceT = setTimeout(onSearchInput, 120);
+});
+$('#filter-clear').addEventListener('click', () => {
+    $('#filter').value = '';
+    $('#filter-clear').hidden = true;
+    $('#filter').focus();
+    onSearchInput();
 });
 $('#search-title').addEventListener('change', onSearchInput);
 $('#search-desc').addEventListener('change', onSearchInput);
@@ -214,7 +274,7 @@ async function onSearchInput() {
     if (isIndexingDone())              return; // index is final, won't change
 
     // Tier 2 — wait for the bg pre-read to finish, then re-run.
-    setSearchStatus('Searching, please wait…', true);
+    setSearchStatus(t('sidebar.searching'), true);
     await indexReady();
     if (myToken !== searchToken) return; // a newer query superseded us
     matches = filterItems(term, wantTitle, wantDesc);
@@ -320,14 +380,14 @@ function renderGallery() {
     const g = $('#gallery');
     g.innerHTML = '';
     if (!items.length) {
-        g.innerHTML = `<div class="empty"><h2>No images loaded.</h2>
-            <p>Open a folder or pick files to begin.</p></div>`;
+        g.innerHTML = `<div class="empty"><h2>${escapeHtml(t('gallery.empty.noImages'))}</h2>
+            <p>${escapeHtml(t('gallery.empty.noImages.hint'))}</p></div>`;
         return;
     }
     const list = visibleItems || items;
     if (!list.length) {
-        g.innerHTML = `<div class="empty"><h2>No matches.</h2>
-            <p>Try a different filter or untick Title/Description to broaden the search.</p></div>`;
+        g.innerHTML = `<div class="empty"><h2>${escapeHtml(t('gallery.empty.noMatches'))}</h2>
+            <p>${escapeHtml(t('gallery.empty.noMatches.hint'))}</p></div>`;
         return;
     }
     const observer = ensureThumbObserver();
@@ -404,7 +464,7 @@ function toggleSelection(i) {
                 [{ transform: 'translate(-50%, 0) scale(1)' }, { transform: 'translate(-50%, 0) scale(1.06)' }, { transform: 'translate(-50%, 0) scale(1)' }],
                 { duration: 220 }
             );
-            toast(`Up to ${MAX_SEL} images per Bluesky post.`, 'err');
+            toast(t('sel.tooMany', { max: MAX_SEL }), 'err');
             return;
         }
         selectedIndexes.add(i);
@@ -426,7 +486,15 @@ function updateSelectionUI() {
     const bar = $('#selection-bar');
     const n = selectedIndexes.size;
     if (n === 0) { bar.hidden = true; selectionMode = false; }
-    else { bar.hidden = false; $('#sel-count').textContent = n; }
+    else {
+        bar.hidden = false;
+        // Render the count using the localized "{n} / {max} selected" string,
+        // keeping the <strong> wrapper for the number.
+        const wrap = $('#sel-count-wrap');
+        const txt  = t('sel.count', { n, max: MAX_SEL });
+        // Inject as text + bold for the number we can locate.
+        wrap.innerHTML = txt.replace(String(n), `<strong id="sel-count">${n}</strong>`);
+    }
 }
 
 /* Long-press helper: 450 ms hold without significant move = trigger.
@@ -463,9 +531,9 @@ $('#sel-post').addEventListener('click', () => beginPostFlow());
 $('#btn-bsky').addEventListener('click', () => {
     if (bsky.isLoggedIn()) {
         // Quick toggle: show signed-in state via toast + offer sign out
-        if (confirm(`Signed in as @${bsky.getSession().handle}. Sign out?`)) {
+        if (confirm(t('bsky.login.confirmSignOut', { handle: bsky.getSession().handle }))) {
             bsky.logout();
-            toast('Signed out of Bluesky.');
+            toast(t('bsky.login.signedOut'));
             updateBskyButton();
         }
     } else {
@@ -476,6 +544,13 @@ $('#btn-bsky').addEventListener('click', () => {
 function openLoginModal() {
     const m = $('#bsky-login-modal');
     m.hidden = false;
+    // Render the intro line (which contains a translated link to bsky.app).
+    const intro = $('#bsky-login-intro');
+    if (intro) {
+        const link = `<a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener">${tHtml('bsky.login.appPwd')}</a>`;
+        // Use tHtml so we can swap {appPwd} with the link safely.
+        intro.innerHTML = tHtml('bsky.login.intro').replace('{appPwd}', link);
+    }
     setStatusEl($('#bsky-login-status'), '');
     setTimeout(() => m.querySelector('input[name="identifier"]')?.focus(), 50);
 }
@@ -489,13 +564,13 @@ $('#bsky-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const status = $('#bsky-login-status');
-    setStatusEl(status, 'Signing in…');
+    setStatusEl(status, t('bsky.login.signing'));
     try {
         await bsky.login(fd.get('identifier'), fd.get('password'));
-        setStatusEl(status, 'Signed in ✔', 'ok');
+        setStatusEl(status, t('bsky.login.success'), 'ok');
         updateBskyButton();
         closeLoginModal();
-        toast(`Signed in as @${bsky.getSession().handle}`, 'ok');
+        toast(t('bsky.login.signedInAs', { handle: bsky.getSession().handle }), 'ok');
         if (pendingPostFlow) { pendingPostFlow = false; openComposeModal(); }
     } catch (err) {
         setStatusEl(status, err.message || String(err), 'err');
@@ -505,11 +580,11 @@ $('#bsky-login-form').addEventListener('submit', async (e) => {
 function updateBskyButton() {
     const btn = $('#btn-bsky');
     if (bsky.isLoggedIn()) {
-        btn.title = `Signed in as @${bsky.getSession().handle} — click to sign out`;
+        btn.title = t('bsky.btn.signedInTitle', { handle: bsky.getSession().handle });
         btn.querySelector('.lbl').textContent = '@' + bsky.getSession().handle.split('.')[0];
     } else {
-        btn.title = 'Sign in to Bluesky';
-        btn.querySelector('.lbl').textContent = 'Bluesky';
+        btn.title = t('app.bsky.title');
+        btn.querySelector('.lbl').textContent = t('app.bsky');
     }
 }
 updateBskyButton();
@@ -584,7 +659,7 @@ $('#bsky-signout').addEventListener('click', () => {
     bsky.logout();
     updateBskyButton();
     closeComposeModal();
-    toast('Signed out of Bluesky.');
+    toast(t('bsky.login.signedOut'));
 });
 
 $('#bsky-text').addEventListener('input', updateComposeCount);
@@ -604,7 +679,7 @@ $('#bsky-reply-url').addEventListener('change', async (e) => {
     const url = e.target.value.trim();
     if (!url) { composeReply = null; $('#bsky-reply-ribbon').hidden = true; updateComposeCount(); return; }
     const status = $('#bsky-reply-status');
-    setStatusEl(status, 'Resolving post…');
+    setStatusEl(status, t('bsky.compose.resolving'));
     try {
         composeReply = await bsky.getPostByUrl(url);
         setStatusEl(status, '');
@@ -635,7 +710,7 @@ function renderReplyCard(reply) {
     $('#bsky-reply-avatar').src = reply.parentAvatar || './icons/icon.svg';
     $('#bsky-reply-name').textContent   = reply.parentDisplayName || reply.parentHandle;
     $('#bsky-reply-author').textContent = '@' + reply.parentHandle;
-    $('#bsky-reply-snippet').textContent = reply.parentText || '(no text)';
+    $('#bsky-reply-snippet').textContent = reply.parentText || t('bsky.compose.noText');
     const imgs = $('#bsky-reply-images');
     imgs.innerHTML = '';
     (reply.parentImages || []).slice(0, 4).forEach(img => {
@@ -657,10 +732,10 @@ function renderComposeImages() {
         div.innerHTML = `
             <div class="bsky-image-thumb">
                 <img src="${url}" alt="" />
-                <button type="button" class="img-remove" title="Remove from post" aria-label="Remove image">✕</button>
+                <button type="button" class="img-remove" title="${escapeHtml(t('bsky.compose.removeImage.title'))}" aria-label="${escapeHtml(t('bsky.compose.removeImage'))}">✕</button>
             </div>
-            <textarea placeholder="Alt text (accessibility description)" maxlength="${bsky.MAX_ALT_LEN + 200}">${escapeHtml(img.alt)}</textarea>
-            <div class="alt-meta"><span class="src">Alt prefilled from metadata</span><span class="cnt">0 / ${bsky.MAX_ALT_LEN}</span></div>`;
+            <textarea placeholder="${escapeHtml(t('bsky.compose.altPlaceholder'))}" maxlength="${bsky.MAX_ALT_LEN + 200}">${escapeHtml(img.alt)}</textarea>
+            <div class="alt-meta"><span class="src">${escapeHtml(t('bsky.compose.altPrefilled'))}</span><span class="cnt">0 / ${bsky.MAX_ALT_LEN}</span></div>`;
         const ta = div.querySelector('textarea');
         const cnt = div.querySelector('.cnt');
         const meta = div.querySelector('.alt-meta');
@@ -729,7 +804,7 @@ async function submitPost() {
     if (composeBusy) return;
     composeBusy = true;
     const status = $('#bsky-post-status');
-    setStatusEl(status, 'Preparing images…');
+    setStatusEl(status, t('bsky.compose.preparing'));
     $('#bsky-post-btn').disabled = true;
 
     try {
@@ -740,7 +815,7 @@ async function submitPost() {
             return { blob: ref, alt: img.alt, width, height };
         }));
 
-        setStatusEl(status, 'Posting…');
+        setStatusEl(status, t('bsky.compose.posting'));
 
         // 2. Create the post
         const created = await bsky.createPost({
@@ -752,8 +827,8 @@ async function submitPost() {
         });
 
         const url = bsky.postUriToWebUrl(created.uri);
-        setStatusEl(status, 'Posted ✔', 'ok');
-        toast('Posted to Bluesky', 'ok');
+        setStatusEl(status, t('bsky.compose.posted'), 'ok');
+        toast(t('bsky.compose.postedToast'), 'ok');
         // Open the post in a new tab so user can verify
         window.open(url, '_blank', 'noopener');
         composeBusy = false;
@@ -762,7 +837,7 @@ async function submitPost() {
     } catch (err) {
         console.error(err);
         composeBusy = false;
-        setStatusEl(status, 'Post failed: ' + (err?.message || err), 'err');
+        setStatusEl(status, t('bsky.compose.failed', { err: err?.message || err }), 'err');
         updateComposeCount();
     }
 }
@@ -782,7 +857,7 @@ $('#btn-revert').addEventListener('click', () => {
     items[currentIndex].edits = null;
     items[currentIndex].dirty = false;
     openItem(currentIndex);
-    setStatus('Reverted unsaved changes.', 'ok');
+    setStatus(t('editor.status.reverted'), 'ok');
 });
 $('#btn-clear-gps').addEventListener('click', () => {
     form.GPSLatitude.value = '';
@@ -856,7 +931,7 @@ async function openItem(i) {
         catch (err) { console.warn('Could not parse metadata for', it.name, err); }
         setStatus('');
     } else {
-        setStatus(`Metadata editing isn't supported for ${fmt.toUpperCase() || 'this format'}. Preview only.`, 'err');
+        setStatus(t('editor.status.unsupported', { fmt: fmt.toUpperCase() || 'this format' }), 'err');
     }
 
     fillForm(it.edits || meta);
@@ -882,17 +957,17 @@ async function saveCurrent({ download }) {
     if (currentIndex < 0) return;
     const it = items[currentIndex];
     if (!isWritable(it.file)) {
-        setStatus('Saving metadata is not supported for this format.', 'err');
+        setStatus(t('editor.status.unsupported.gen'), 'err');
         return;
     }
     const vals = readForm();
-    setStatus('Saving…');
+    setStatus(t('editor.status.saving'));
     try {
         const blob = await writeMetadata(it.file, vals);
 
         if (download || !it.handle) {
             triggerDownload(blob, it.name);
-            setStatus('Downloaded a copy with new metadata.', 'ok');
+            setStatus(t('editor.status.downloaded'), 'ok');
         } else {
             const writable = await it.handle.createWritable();
             await writable.write(blob);
@@ -905,15 +980,15 @@ async function saveCurrent({ download }) {
                 title:       (vals.ImageDescription || '').toString().toLowerCase(),
                 description: (vals.UserComment      || '').toString().toLowerCase()
             };
-            setStatus('Saved to original file ✔', 'ok');
+            setStatus(t('editor.status.saved'), 'ok');
             document.querySelector(`#file-list li[data-index="${currentIndex}"]`)?.classList.remove('dirty');
             document.querySelector(`.thumb[data-index="${currentIndex}"]`)?.classList.remove('dirty');
-            toast(`Saved ${it.name}`, 'ok');
+            toast(t('editor.toast.saved', { name: it.name }), 'ok');
         }
     } catch (err) {
         console.error(err);
-        setStatus('Save failed: ' + (err?.message || err), 'err');
-        toast('Save failed', 'err');
+        setStatus(t('editor.status.saveFailed', { err: err?.message || err }), 'err');
+        toast(t('editor.toast.saveFailed'), 'err');
     }
 }
 

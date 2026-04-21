@@ -87,10 +87,30 @@ button[disabled] { opacity: .55; cursor: not-allowed; }
 .sidebar-head strong { display: block; font-weight: 600; }
 .sidebar-head small { color: var(--muted); }
 #filter {
-    margin: 8px 12px; padding: 6px 8px;
+    width: 100%;
+    padding: 6px 28px 6px 8px;
     background: var(--panel-2); color: var(--text);
     border: 1px solid var(--border); border-radius: var(--radius);
 }
+.filter-wrap {
+    position: relative;
+    margin: 8px 12px;
+}
+.filter-clear {
+    position: absolute;
+    right: 4px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px;
+    padding: 0; line-height: 1; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.filter-clear:hover { background: var(--border); color: var(--text); }
+/* Hide the native clear button — ours is consistent across browsers. */
+#filter::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .search-opts {
     display: flex; gap: 12px; flex-wrap: wrap;
     margin: 0 12px 4px;
@@ -307,12 +327,18 @@ button[disabled] { opacity: .55; cursor: not-allowed; }
     .tag { display: none; }
 
     /* Compact action buttons: icon-only */
-    .topbar { padding: 8px 10px; gap: 8px; }
-    .brand { gap: 6px; min-width: 0; }
-    .brand h1 { font-size: 15px; margin-right: 6px; }
-    .actions { gap: 6px; }
-    .actions button { padding: 6px 10px; font-size: 16px; line-height: 1; }
+    .topbar { padding: 8px 10px; gap: 6px; }
+    .brand { gap: 6px; min-width: 0; flex: 0 1 auto; }
+    /* Hide the wordmark and logo on phones — the hamburger + favicon-as-app
+       icon already identify the app, and we need every pixel for actions. */
+    .brand h1 { display: none; }
+    .brand img { display: none; }
+    .actions { gap: 4px; flex-wrap: nowrap; }
+    .actions button { padding: 6px 8px; font-size: 16px; line-height: 1; }
     .actions .lbl { display: none; }
+    /* Tighten the new help button + language switcher so the row fits. */
+    #btn-help { padding: 6px 8px; }
+    .lang-switch { padding: 4px 4px; font-size: 11px; }
 
     /* Larger, easier-to-tap thumbnails on mobile */
     .gallery {
@@ -565,6 +591,37 @@ button[disabled] { opacity: .55; cursor: not-allowed; }
 
 /* Sign-in modal form */
 #bsky-login-form .form-actions { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Language switcher in topbar */
+.lang-switch {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 6px; font: inherit; font-size: 12px;
+    cursor: pointer;
+}
+
+/* Welcome / help modal */
+.welcome-card { width: min(640px, 100%); }
+.welcome-body p { margin: 0 0 12px; line-height: 1.5; }
+.welcome-body p:last-child { margin-bottom: 0; }
+.welcome-body p.author {
+    margin-top: 18px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--muted);
+}
+.welcome-body a { color: var(--accent); }
+.welcome-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+}
+.welcome-foot .skip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--muted); cursor: pointer;
+}
+.welcome-foot .skip input { cursor: pointer; }
 
 @media (max-width: 820px) {
     .modal { padding: 0; align-items: stretch; }

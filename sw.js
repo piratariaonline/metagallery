@@ -2,7 +2,7 @@
  * - Network-first for the app shell (HTML/CSS/JS) so updates land immediately.
  * - Cache-first for vendored libs and icons (rarely change, big wins offline).
  */
-const CACHE = 'metagallery-v13';
+const CACHE = 'metagallery-v16';
 const ASSETS = [
     './',
     './index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
     './thumbs.js',
     './searchIndex.js',
     './bluesky.js',
+    './i18n.js',
     './manifest.webmanifest',
     './vendor/piexif.min.js',
     './icons/icon.svg',
